@@ -11,9 +11,11 @@ find_package(ITK_Haralick REQUIRED)
 INCLUDE_DIRECTORIES(${ITK_Haralick_INCLUDE_DIRS})
 
 add_executable(main main.cpp)
+
+SET_TARGET_PROPERTIES(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
  
 if( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ITKReview ${ITK_LIBRARIES} ${FANN_DOUBLE_LIBRARY})
+  target_link_libraries(main ITKReview ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} )
 else( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ${ITK_LIBRARIES} ${FANN_DOUBLE_LIBRARY})
+  target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY})
 endif( "${ITK_VERSION_MAJOR}" LESS 4 )

@@ -4,10 +4,19 @@
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
-#include "itkScalarImageToHaralickTextureFeaturesFilter.h"
+#include "itkScalarImageToLocalHaralickTextureFeaturesFilter.h"
 #include "itkImageRegionIteratorWithIndex.h"
 
 #include "doublefann.h"
+
+typedef unsigned long long timestamp_t;
+
+timestamp_t get_timestamp ()
+{
+  struct timeval now;
+  gettimeofday (&now, NULL);
+  return  now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
+}
 
 const unsigned int D = 2;
 const unsigned int PosterizationLevel = 16;
@@ -18,7 +27,7 @@ typedef itk::ImageFileWriter<ImageType> WriterType;
 typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilter;
 
 typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageIterator;
-typedef typename itk::Statistics::ScalarImageToHaralickTextureFeaturesFilter< ImageType, double  > ScalarImageToHaralickTextureFeaturesFilter;
+typedef typename itk::Statistics::ScalarImageToLocalHaralickTextureFeaturesFilter< ImageType, double  > ScalarImageToLocalHaralickTextureFeaturesFilter;
 
 typedef ::itk::Size< D > RadiusType;
 
@@ -29,6 +38,8 @@ int main(int argc, char **argv)
     std::cout << "Usage: " << argv[0] << " <Image> <LearningMask>" << std::endl << std::endl;
     exit(0);
   }
+
+  timestamp_t start = get_timestamp();
 
   typename ReaderType::Pointer imageReader = ReaderType::New();
   imageReader->SetFileName(argv[1]);
@@ -44,19 +55,19 @@ int main(int argc, char **argv)
   rescaler->SetOutputMaximum(PosterizationLevel);
   rescaler->Update();
 
-  typename ScalarImageToHaralickTextureFeaturesFilter::Pointer featuresComputer = ScalarImageToHaralickTextureFeaturesFilter::New();
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::Pointer featuresComputer = ScalarImageToLocalHaralickTextureFeaturesFilter::New();
   featuresComputer->SetNumberOfBinsPerAxis(PosterizationLevel);
   featuresComputer->SetInput(rescaler->GetOutput());
 
-  typename ScalarImageToHaralickTextureFeaturesFilter::OffsetType offset1 = {{0, 1}};
-  typename ScalarImageToHaralickTextureFeaturesFilter::OffsetVectorType::Pointer offsetV = ScalarImageToHaralickTextureFeaturesFilter::OffsetVectorType::New();
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetType offset1 = {{0, 1}};
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetVectorType::Pointer offsetV = ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetVectorType::New();
   offsetV->push_back(offset1);
   featuresComputer->SetOffsets(offsetV);
 
-  typename ScalarImageToHaralickTextureFeaturesFilter::InputImageType::RegionType windowRegion;
-  typename ScalarImageToHaralickTextureFeaturesFilter::InputImageType::IndexType windowIndex;
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::RegionType windowRegion;
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::IndexType windowIndex;
   RadiusType windowRadius = {{ 5, 5 }};
-  typename ScalarImageToHaralickTextureFeaturesFilter::InputImageType::SizeType windowSize;
+  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::SizeType windowSize;
 
   for(unsigned int i = 0; i < D; ++i)
     {
@@ -99,14 +110,14 @@ int main(int argc, char **argv)
 
       raw_data.clear();
       
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Energy ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Entropy ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Correlation ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::InverseDifferenceMoment ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Inertia ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterShade ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterProminence ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::HaralickCorrelation ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Energy ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Entropy ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Correlation ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::InverseDifferenceMoment ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Inertia ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterShade ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterProminence ) );
+      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::HaralickCorrelation ) );
 
       /*
       for(typename std::vector<double>::size_type i=0; i<raw_data.size(); ++i){
@@ -218,14 +229,14 @@ int main(int argc, char **argv)
 
     raw_data.clear();
     
-    input[0] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Energy );
-    input[1] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Entropy ) ;
-    input[2] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Correlation ) ;
-    input[3] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::InverseDifferenceMoment ) ;
-    input[4] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Inertia ) ;
-    input[5] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterShade ) ;
-    input[6] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterProminence ) ;
-    input[7] = featuresComputer->GetFeature( ScalarImageToHaralickTextureFeaturesFilter::HaralickFeaturesComputer::HaralickCorrelation );
+    input[0] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Energy );
+    input[1] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Entropy ) ;
+    input[2] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Correlation ) ;
+    input[3] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::InverseDifferenceMoment ) ;
+    input[4] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Inertia ) ;
+    input[5] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterShade ) ;
+    input[6] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterProminence ) ;
+    input[7] = featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::HaralickCorrelation );
 
     for(unsigned int i = 0; i < 8; ++i)
     {
