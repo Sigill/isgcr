@@ -2,11 +2,11 @@
 
 typedef itk::ImageRegionConstIteratorWithIndex< ImageType > ConstIterator;
 
-std::auto_ptr<TrainingSetVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage)
+boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage)
 {
   const unsigned int number_of_classes = filenames.size();
 
-  std::auto_ptr<TrainingClassVector> raw_learning_classes(new TrainingClassVector());
+  boost::shared_ptr<TrainingClassVector> raw_learning_classes(new TrainingClassVector());
 
   for(int i = 0; i < number_of_classes; ++i)
   {
@@ -33,19 +33,25 @@ std::auto_ptr<TrainingSetVector> load_classes(const std::vector< std::string > f
     raw_learning_classes->push_back(current_class);
   }
 
-  //
-  // No we have every class to learn
-  //
+  return raw_learning_classes;
+}
 
-  unsigned int total = 0, previous_total;
-  for(int i = 0; i < number_of_classes; ++i)
+boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<TrainingClassVector> raw_learning_classes)
+{
+  const unsigned int number_of_classes = raw_learning_classes->size();
+
+  unsigned int total = 0;
   {
-    previous_total = total;
-    total += raw_learning_classes->operator[](i)->size();
-    std::cout << "Class #" << i << ": " << (total - previous_total) << " elements" << std::endl;
+    unsigned int previous_total;
+    for(int i = 0; i < number_of_classes; ++i)
+    {
+      previous_total = total;
+      total += raw_learning_classes->operator[](i)->size();
+      std::cout << "Class #" << i << ": " << (total - previous_total) << " elements" << std::endl;
+    }
   }
 
-  // Creating one data set with inputs from every classes but zero for the output
+  // Creating one data set that will be used to initialized the others
   TrainingSet * training_data = fann_create_train(total, 8, 1);
   fann_type **training_data_input_it = training_data->input;
   fann_type **training_data_output_it = training_data->output;
@@ -53,6 +59,7 @@ std::auto_ptr<TrainingSetVector> load_classes(const std::vector< std::string > f
   for(int i = 0; i < number_of_classes; ++i)
   {
     boost::shared_ptr< TrainingClass > current_class = raw_learning_classes->operator[](i);
+
     TrainingClass::const_iterator current_raw_class_it = current_class->begin(), current_raw_class_end = current_class->end();
 
     while(current_raw_class_it != current_raw_class_end)
@@ -67,16 +74,17 @@ std::auto_ptr<TrainingSetVector> load_classes(const std::vector< std::string > f
     }
   }
 
-  std::auto_ptr< TrainingSetVector > learning_classes(new TrainingSetVector());
+  boost::shared_ptr< TrainingSetVector > learning_classes(new TrainingSetVector());
   // Storing the first one
-  learning_classes->push_back( boost::shared_ptr< TrainingSet >( training_data ) );
+  learning_classes->push_back( boost::shared_ptr< TrainingSet >( training_data, fann_destroy_train ) );
 
   // Storing copies of the first one
   for(int i = 1; i < number_of_classes; ++i)
   {
-    learning_classes->push_back( boost::shared_ptr< TrainingSet >( fann_duplicate_train_data(training_data) ) );
+    learning_classes->push_back( boost::shared_ptr< TrainingSet >( fann_duplicate_train_data(training_data), fann_destroy_train ) );
   }
 
+  // Set the desired output of a class to 1 in the dataset representing this class
   int class_start = 0, current_class_size;
   for(int i = 0; i < number_of_classes; ++i)
   {

@@ -96,102 +96,10 @@ int main(int argc, char **argv)
 
   CALLGRIND_START_INSTRUMENTATION
 
-  std::auto_ptr< TrainingSetVector > training_sets = load_classes(cli_parser.get_class_images(), haralickImage);
+  boost::shared_ptr< TrainingClassVector > training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
+  boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
 
   CALLGRIND_STOP_INSTRUMENTATION
-
-  return 0;
-
-  typename ReaderType::Pointer learningMaskReader = ReaderType::New();
-  learningMaskReader->SetFileName(argv[2]);
-  learningMaskReader->Update();
-
-
-  std::vector< typename ScalarHaralickImageToHaralickImageFilterType::OutputImageType::PixelType > raw_inputs;
-  std::vector< double > raw_outputs;
-
-  ImageType::PixelType pix;
-  ImageType::IndexType pixIndex;
-
-  itk::ImageRegionConstIteratorWithIndex< ImageType > learningMaskIterator(learningMaskReader->GetOutput(), requestedRegion);
-  learningMaskIterator.GoToBegin();
-  while(!learningMaskIterator.IsAtEnd())
-  {
-    pix = learningMaskIterator.Get();
-    if(pix == 255)
-    {
-      raw_outputs.push_back(1.0);
-    } else if(pix == 127) {
-      raw_outputs.push_back(0.0);
-    }
-
-    if(pix > 0)
-    {
-      pixIndex = learningMaskIterator.GetIndex();
-      raw_inputs.push_back(haralickImage->GetPixel(pixIndex));
-    }
-
-    ++learningMaskIterator;
-  }
-
-  struct fann_train_data * training_data = fann_create_train(raw_inputs.size(), 8, 1);
-
-  fann_type **data_input_it = training_data->input;
-  fann_type **data_output_it = training_data->output;
-
-  fann_type *data_input_min = new fann_type[8];
-  fann_type *data_input_max = new fann_type[8];
-
-  for(unsigned int i = 0; i < 8; ++i)
-  {
-    data_input_min[i] = 1.0;
-    data_input_max[i] = 0.0;
-  }
-
-  std::vector< typename ScalarHaralickImageToHaralickImageFilterType::OutputImageType::PixelType >::const_iterator raw_inputs_it = raw_inputs.begin(), raw_inputs_end = raw_inputs.end();
-  std::vector< double >::const_iterator raw_outputs_it = raw_outputs.begin(), raw_outputs_end = raw_outputs.end();
-
-  while(raw_inputs_it != raw_inputs_end)
-  {
-    for(unsigned int i = 0; i < 8; ++i)
-    {
-      (*data_input_it)[i] = (*raw_inputs_it)[i];
-
-      if(data_input_min[i] > (*raw_inputs_it)[i])
-        data_input_min[i] = (*raw_inputs_it)[i];
-
-      if(data_input_max[i] < (*raw_inputs_it)[i])
-        data_input_max[i] = (*raw_inputs_it)[i];
-    }
-
-    ++data_input_it;
-
-
-    (*data_output_it)[0] = *raw_outputs_it;
-
-    ++data_output_it;
-
-
-    ++raw_inputs_it;
-    ++raw_outputs_it;
-  }
-
-  data_input_it = training_data->input;
-  for(unsigned int j = 0; j < raw_inputs.size(); ++j)
-  {
-    for(unsigned int i = 0; i < 8; ++i)
-    {
-      (*data_input_it)[i] = ((*data_input_it)[i] - data_input_min[i]) / (data_input_max[i] - data_input_min[i]);
-    }
-    ++data_input_it;
-  }
-
-  //fann_scale_input_train_data(training_data, 0.0, 1.0);
-
-  fann_save_train(training_data, "training_set.data");
-
-  raw_inputs.clear();
-  raw_outputs.clear();
 
   /*
   fann_shuffle_train_data(training_data);
@@ -258,8 +166,6 @@ int main(int argc, char **argv)
   writer->SetFileName("out.bmp");
   writer->Update();
   */
-
-  fann_destroy_train(training_data);
 
   return 0;
 }

@@ -15,7 +15,10 @@ typedef std::vector< boost::shared_ptr< TrainingClass > > TrainingClassVector;
 typedef struct fann_train_data TrainingSet;
 typedef std::vector< boost::shared_ptr< TrainingSet > > TrainingSetVector;
 
-std::auto_ptr<TrainingSetVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage);
+
+boost::shared_ptr<TrainingClassVector> load_classes( const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage );
+
+boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<TrainingClassVector> raw_learning_classes );
 
 #endif /* LEARNING_CLASSES_LOADER_H */
 
