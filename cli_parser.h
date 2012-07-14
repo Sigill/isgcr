@@ -1,0 +1,22 @@
+#ifndef _CLI_OPTIONS_H
+#define _CLI_OPTIONS_H
+
+#include <boost/program_options.hpp>
+#include <vector>
+
+namespace po = boost::program_options;
+
+class CliParser
+{
+public:
+  CliParser();
+  int parse_argv(int argc, char ** argv);
+  const std::string get_input_image() const;
+  const std::vector<std::string> get_class_images() const;
+
+private:
+  std::string input_image;
+  std::vector< std::string > class_images;
+};
+
+#endif /* _CLI_OPTIONS_H */

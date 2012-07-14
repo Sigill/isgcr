@@ -1,90 +1,119 @@
 #include <iostream>
 #include <vector>
 
-#include "itkImageFileReader.h"
+#include "common.h"
+#include "time_utils.h"
+#include "cli_parser.h"
+#include "learning_classes_loader.h"
+
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
-#include "itkScalarImageToLocalHaralickTextureFeaturesFilter.h"
 #include "itkImageRegionIteratorWithIndex.h"
+
+#include "itkNthElementImageAdaptor.h"
 
 #include "doublefann.h"
 
-typedef unsigned long long timestamp_t;
+#include "callgrind.h"
 
-timestamp_t get_timestamp ()
-{
-  struct timeval now;
-  gettimeofday (&now, NULL);
-  return  now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
-}
-
-const unsigned int D = 2;
 const unsigned int PosterizationLevel = 16;
 
-typedef itk::Image<unsigned char, D> ImageType;
-typedef itk::ImageFileReader<ImageType> ReaderType;
 typedef itk::ImageFileWriter<ImageType> WriterType;
 typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilter;
 
 typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageIterator;
-typedef typename itk::Statistics::ScalarImageToLocalHaralickTextureFeaturesFilter< ImageType, double  > ScalarImageToLocalHaralickTextureFeaturesFilter;
 
-typedef ::itk::Size< D > RadiusType;
+typedef itk::NthElementImageAdaptor< HaralickImageType, double > HaralickImageToScalarImageAdaptorType;
+typedef itk::RescaleIntensityImageFilter< HaralickImageToScalarImageAdaptorType, ScalarHaralickImageType > ScalarHaralickImageRescaleFilter;
+
+
+typedef ::itk::Size< __ImageDimension > RadiusType;
 
 int main(int argc, char **argv)
 {
-  if(argc != 3)
-  {
-    std::cout << "Usage: " << argv[0] << " <Image> <LearningMask>" << std::endl << std::endl;
-    exit(0);
-  }
+  CliParser cli_parser;
+  int parse_result = cli_parser.parse_argv(argc, argv);
+  if(parse_result <= 0)
+    exit(parse_result);
 
-  timestamp_t start = get_timestamp();
+  timestamp_t timestamp_start = get_timestamp();
 
+  // Read the input image
   typename ReaderType::Pointer imageReader = ReaderType::New();
-  imageReader->SetFileName(argv[1]);
+  imageReader->SetFileName(cli_parser.get_input_image());
   imageReader->Update();
 
-  typename ReaderType::Pointer learningMaskReader = ReaderType::New();
-  learningMaskReader->SetFileName(argv[2]);
-  learningMaskReader->Update();
-
+  // Posterize the input image
   typename RescaleFilter::Pointer rescaler = RescaleFilter::New();
   rescaler->SetInput(imageReader->GetOutput());
   rescaler->SetOutputMinimum(0);
   rescaler->SetOutputMaximum(PosterizationLevel);
   rescaler->Update();
 
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::Pointer featuresComputer = ScalarImageToLocalHaralickTextureFeaturesFilter::New();
-  featuresComputer->SetNumberOfBinsPerAxis(PosterizationLevel);
-  featuresComputer->SetInput(rescaler->GetOutput());
+  // Compute the haralick features
+  typename ScalarImageToHaralickTextureFeaturesImageFilter::Pointer haralickImageComputer = ScalarImageToHaralickTextureFeaturesImageFilter::New();
+  typename ScalarImageToHaralickTextureFeaturesImageFilter::RadiusType windowRadius; windowRadius.Fill(5);
+  haralickImageComputer->SetInput(rescaler->GetOutput());
+  haralickImageComputer->SetWindowRadius(windowRadius);
+  haralickImageComputer->SetNumberOfBinsPerAxis(PosterizationLevel);
 
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetType offset1 = {{0, 1}};
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetVectorType::Pointer offsetV = ScalarImageToLocalHaralickTextureFeaturesFilter::OffsetVectorType::New();
+  typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{0, 1}};
+  typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::Pointer offsetV = ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::New();
   offsetV->push_back(offset1);
-  featuresComputer->SetOffsets(offsetV);
+  haralickImageComputer->SetOffsets(offsetV);
+  haralickImageComputer->Update();
 
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::RegionType windowRegion;
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::IndexType windowIndex;
-  RadiusType windowRadius = {{ 5, 5 }};
-  typename ScalarImageToLocalHaralickTextureFeaturesFilter::InputImageType::SizeType windowSize;
+  std::cout << "Haralick features computation: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
 
-  for(unsigned int i = 0; i < D; ++i)
-    {
-    windowSize.SetElement(i, (windowRadius.GetElement(i) << 1) + 1);
-    }
+  // Rescale haralick features
+  ScalarHaralickImageToHaralickImageFilterType::Pointer imageToVectorImageFilter = ScalarHaralickImageToHaralickImageFilterType::New();
 
-  typename ImageType::RegionType requestedRegion = rescaler->GetOutput()->GetLargestPossibleRegion();
+  #pragma omp parallel for
+  for(int i = 0; i < 8; ++i)
+  {
+    HaralickImageToScalarImageAdaptorType::Pointer adaptor = HaralickImageToScalarImageAdaptorType::New();
+    adaptor->SelectNthElement(i);
+    adaptor->SetImage(haralickImageComputer->GetOutput());
 
-  std::vector< std::vector< double > > raw_inputs;
+    ScalarHaralickImageRescaleFilter::Pointer rescaler = ScalarHaralickImageRescaleFilter::New();
+    rescaler->SetInput(adaptor);
+    rescaler->SetOutputMinimum(0.0);
+    rescaler->SetOutputMaximum(1.0);
+
+    rescaler->Update();
+
+    imageToVectorImageFilter->SetInput(i, rescaler->GetOutput());
+  }
+
+  std::cout << "Rescaling: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
+
+  imageToVectorImageFilter->Update();
+
+  std::cout << "Combination: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
+
+  typename NormalizedHaralickImage::Pointer haralickImage = imageToVectorImageFilter->GetOutput();
+  typename ImageType::RegionType requestedRegion = haralickImage->GetLargestPossibleRegion();
+
+  CALLGRIND_START_INSTRUMENTATION
+
+  std::auto_ptr< TrainingSetVector > training_sets = load_classes(cli_parser.get_class_images(), haralickImage);
+
+  CALLGRIND_STOP_INSTRUMENTATION
+
+  return 0;
+
+  typename ReaderType::Pointer learningMaskReader = ReaderType::New();
+  learningMaskReader->SetFileName(argv[2]);
+  learningMaskReader->Update();
+
+
+  std::vector< typename ScalarHaralickImageToHaralickImageFilterType::OutputImageType::PixelType > raw_inputs;
   std::vector< double > raw_outputs;
-  std::vector< double > raw_data(8);
 
   ImageType::PixelType pix;
+  ImageType::IndexType pixIndex;
 
-  itk::ImageRegionConstIteratorWithIndex< ImageType > imageIterator(rescaler->GetOutput(), requestedRegion);
   itk::ImageRegionConstIteratorWithIndex< ImageType > learningMaskIterator(learningMaskReader->GetOutput(), requestedRegion);
-  imageIterator.GoToBegin();
   learningMaskIterator.GoToBegin();
   while(!learningMaskIterator.IsAtEnd())
   {
@@ -98,39 +127,11 @@ int main(int argc, char **argv)
 
     if(pix > 0)
     {
-      windowIndex = imageIterator.GetIndex();
-      windowIndex -= windowRadius;
-
-      windowRegion.SetIndex(windowIndex);
-      windowRegion.SetSize(windowSize);
-      windowRegion.Crop(requestedRegion);
-
-      featuresComputer->SetRegionOfInterest(windowRegion);
-      featuresComputer->Update();
-
-      raw_data.clear();
-      
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Energy ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Entropy ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Correlation ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::InverseDifferenceMoment ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::Inertia ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterShade ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::ClusterProminence ) );
-      raw_data.push_back( featuresComputer->GetFeature( ScalarImageToLocalHaralickTextureFeaturesFilter::HaralickFeaturesComputer::HaralickCorrelation ) );
-
-      /*
-      for(typename std::vector<double>::size_type i=0; i<raw_data.size(); ++i){
-        std::cout << raw_data[i] << '\t';
-      }
-      std::cout << std::endl << std::endl;
-      */
-
-      raw_inputs.push_back(raw_data);
+      pixIndex = learningMaskIterator.GetIndex();
+      raw_inputs.push_back(haralickImage->GetPixel(pixIndex));
     }
 
     ++learningMaskIterator;
-    ++imageIterator;
   }
 
   struct fann_train_data * training_data = fann_create_train(raw_inputs.size(), 8, 1);
@@ -147,7 +148,7 @@ int main(int argc, char **argv)
     data_input_max[i] = 0.0;
   }
 
-  std::vector< std::vector< double > >::const_iterator raw_inputs_it = raw_inputs.begin(), raw_inputs_end = raw_inputs.end();
+  std::vector< typename ScalarHaralickImageToHaralickImageFilterType::OutputImageType::PixelType >::const_iterator raw_inputs_it = raw_inputs.begin(), raw_inputs_end = raw_inputs.end();
   std::vector< double >::const_iterator raw_outputs_it = raw_outputs.begin(), raw_outputs_end = raw_outputs.end();
 
   while(raw_inputs_it != raw_inputs_end)
@@ -185,13 +186,14 @@ int main(int argc, char **argv)
     ++data_input_it;
   }
 
-  fann_scale_input_train_data(training_data, 0.0, 1.0);
+  //fann_scale_input_train_data(training_data, 0.0, 1.0);
 
   fann_save_train(training_data, "training_set.data");
 
   raw_inputs.clear();
   raw_outputs.clear();
 
+  /*
   fann_shuffle_train_data(training_data);
 
   struct fann* ann = fann_create_standard(3, 8, 3, 1);
@@ -255,6 +257,7 @@ int main(int argc, char **argv)
   writer->SetInput(out);
   writer->SetFileName("out.bmp");
   writer->Update();
+  */
 
   fann_destroy_train(training_data);
 
