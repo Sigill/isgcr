@@ -5,6 +5,7 @@
 #include "time_utils.h"
 #include "cli_parser.h"
 #include "learning_classes_loader.h"
+#include "image_loader.h"
 
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
@@ -39,13 +40,17 @@ int main(int argc, char **argv)
   timestamp_t timestamp_start = get_timestamp();
 
   // Read the input image
-  typename ReaderType::Pointer imageReader = ReaderType::New();
-  imageReader->SetFileName(cli_parser.get_input_image());
-  imageReader->Update();
+  ImageType::Pointer image;
+  try {
+    image = ImageLoader::load(cli_parser.get_input_image());
+  } catch (ImageLoadingException & ex) {
+    std::cerr << ex.what() << std::endl;
+    exit(-1);
+  }
 
   // Posterize the input image
   typename RescaleFilter::Pointer rescaler = RescaleFilter::New();
-  rescaler->SetInput(imageReader->GetOutput());
+  rescaler->SetInput(image);
   rescaler->SetOutputMinimum(0);
   rescaler->SetOutputMaximum(PosterizationLevel);
   rescaler->Update();
@@ -94,12 +99,34 @@ int main(int argc, char **argv)
   typename NormalizedHaralickImage::Pointer haralickImage = imageToVectorImageFilter->GetOutput();
   typename ImageType::RegionType requestedRegion = haralickImage->GetLargestPossibleRegion();
 
-  CALLGRIND_START_INSTRUMENTATION
+  boost::shared_ptr< TrainingClassVector > training_classes;
+  try {
+    training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
+  } catch (LearningClassException & ex) {
+    std::cerr << "Unable to load the training classes: " << ex.what() << std::endl;
+  }
 
-  boost::shared_ptr< TrainingClassVector > training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
   boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
 
-  CALLGRIND_STOP_INSTRUMENTATION
+  const unsigned int number_of_classes = training_sets->size();
+
+  #pragma omp parallel for if(number_of_classes > 1)
+  for(int i = 0; i < number_of_classes; ++i)
+  {
+    std::cout << "Training ann #" << i << std::endl;
+    boost::shared_ptr<TrainingSet> current_training_set = training_sets->operator[](i);
+
+    fann_shuffle_train_data(current_training_set.get());
+
+    struct fann* ann = fann_create_standard(3, 8, 3, 1);
+    fann_set_activation_function_hidden(ann, FANN_SIGMOID);
+    fann_set_activation_function_output(ann, FANN_SIGMOID);
+    fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
+    fann_set_learning_rate(ann, 0.1);
+
+    fann_train_on_data(ann, current_training_set.get(), 1000, 0, 0.0001);
+    std::cout << "MSE for ann #" << i << ": " << fann_get_MSE(ann) << std::endl;
+  }
 
   /*
   fann_shuffle_train_data(training_data);

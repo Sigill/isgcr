@@ -15,13 +15,20 @@ include_directories(${ITK_Haralick_INCLUDE_DIRS})
 set(Boost_USE_STATIC_LIBS        ON)
 set(Boost_USE_MULTITHREADED      ON)
 set(Boost_USE_STATIC_RUNTIME    ON)
-find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(Boost COMPONENTS program_options system filesystem regex REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 find_package(Valgrind REQUIRED)
 include_directories(${VALGRIND_INCLUDE_DIR})
 
-add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp learning_classes_loader.cpp)
+include(FindOpenMP)
+if(OPENMP_FOUND)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
+
+add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp learning_classes_loader.cpp image_loader.cpp)
 
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
  

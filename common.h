@@ -6,9 +6,8 @@
 #include "itkScalarImageToHaralickTextureFeaturesImageFilter.h"
 #include "itkComposeImageFilter.h"
 
-#define __ImageDimension 2
+#define __ImageDimension 3
 
-extern const unsigned int D;
 
 typedef itk::Image< unsigned char, __ImageDimension > ImageType;
 typedef itk::ImageFileReader< ImageType > ReaderType;

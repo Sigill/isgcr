@@ -1,5 +1,6 @@
 #include "cli_parser.h"
 
+#include <boost/filesystem.hpp>
 #include <iostream>
 
 CliParser::CliParser()
@@ -29,6 +30,12 @@ int CliParser::parse_argv(int argc, char ** argv)
   if(vm.count("input-image"))
   {
     std::cout << "Image to process: " << this->input_image << std::endl;
+    boost::filesystem::path path(this->input_image);
+    if(!boost::filesystem::exists(path))
+    {
+      std::cerr << this->input_image << " does not exists" << std::endl;
+      return -1;
+    }
   } else {
     std::cerr << "No input image provided." << std::endl;
     return -1;

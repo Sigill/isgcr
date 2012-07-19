@@ -1,8 +1,12 @@
 #include "learning_classes_loader.h"
 
+#include "image_loader.h"
+
+#include <ostream>
+
 typedef itk::ImageRegionConstIteratorWithIndex< ImageType > ConstIterator;
 
-boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage)
+boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage) throw(LearningClassException)
 {
   const unsigned int number_of_classes = filenames.size();
 
@@ -10,14 +14,23 @@ boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::stri
 
   for(int i = 0; i < number_of_classes; ++i)
   {
-    std::cout << "Loading: " << filenames[i] << std::endl;
-    typename ReaderType::Pointer learningClassReader = ReaderType::New();
-    learningClassReader->SetFileName(filenames[i]);
-    learningClassReader->Update();
+    ImageType::Pointer image;
+    try {
+      image = ImageLoader::load(filenames[i]);
+    } catch (ImageLoadingException & ex) {
+      throw LearningClassException(ex.what());
+    } 
+
+    if(image->GetLargestPossibleRegion().GetSize() != haralickImage->GetLargestPossibleRegion().GetSize())
+    {
+      std::stringstream err;
+      err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << " differs from the dimensions of the image (" << haralickImage->GetLargestPossibleRegion().GetSize();
+      throw LearningClassException(err.str());
+    }
 
     boost::shared_ptr< TrainingClass > current_class(new TrainingClass);
 
-    ConstIterator learningClassIterator(learningClassReader->GetOutput(), learningClassReader->GetOutput()->GetLargestPossibleRegion());
+    ConstIterator learningClassIterator(image, image->GetLargestPossibleRegion());
     while(!learningClassIterator.IsAtEnd())
     {
       if(255 == learningClassIterator.Get())
