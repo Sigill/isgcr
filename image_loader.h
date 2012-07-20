@@ -5,9 +5,6 @@
 
 #include "common.h"
 
-#include "itkImageFileReader.h"
-#include "itkImageSeriesReader.h"
-
 class ImageLoadingException : public std::runtime_error
 {
 public:
@@ -17,10 +14,6 @@ public:
 
 class ImageLoader
 {
-private:
-  typedef itk::ImageFileReader< ImageType > ImageReader;
-  typedef itk::ImageSeriesReader< ImageType > ImageSeriesReader;
-
 public:
   /**
    * Load an image either as a single file or as a serie of files.

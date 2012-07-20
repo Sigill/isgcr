@@ -1,9 +1,16 @@
 #include "image_loader.h"
 
+#include "itkImageFileReader.h"
+#include "itkImageSeriesReader.h"
+
 #include <ostream>
 
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
+
+typedef itk::ImageFileReader< ImageType > ImageReader;
+typedef itk::ImageSeriesReader< ImageType > ImageSeriesReader;
+
 
 ImageType::Pointer ImageLoader::load(const std::string filename) throw(ImageLoadingException)
 {

@@ -8,24 +8,19 @@
 #include "image_loader.h"
 
 #include "itkImageFileWriter.h"
-#include "itkRescaleIntensityImageFilter.h"
 #include "itkImageRegionIteratorWithIndex.h"
 
-#include "itkNthElementImageAdaptor.h"
+#include "haralick_image.h"
 
 #include "doublefann.h"
 
 #include "callgrind.h"
 
-const unsigned int PosterizationLevel = 16;
+const unsigned int posterizationLevel = 16;
 
 typedef itk::ImageFileWriter<ImageType> WriterType;
-typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilter;
 
 typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageIterator;
-
-typedef itk::NthElementImageAdaptor< HaralickImageType, double > HaralickImageToScalarImageAdaptorType;
-typedef itk::RescaleIntensityImageFilter< HaralickImageToScalarImageAdaptorType, ScalarHaralickImageType > ScalarHaralickImageRescaleFilter;
 
 
 typedef ::itk::Size< __ImageDimension > RadiusType;
@@ -39,65 +34,9 @@ int main(int argc, char **argv)
 
   timestamp_t timestamp_start = get_timestamp();
 
-  // Read the input image
-  ImageType::Pointer image;
-  try {
-    image = ImageLoader::load(cli_parser.get_input_image());
-  } catch (ImageLoadingException & ex) {
-    std::cerr << ex.what() << std::endl;
-    exit(-1);
-  }
+  typename NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, 5);
 
-  // Posterize the input image
-  typename RescaleFilter::Pointer rescaler = RescaleFilter::New();
-  rescaler->SetInput(image);
-  rescaler->SetOutputMinimum(0);
-  rescaler->SetOutputMaximum(PosterizationLevel);
-  rescaler->Update();
-
-  // Compute the haralick features
-  typename ScalarImageToHaralickTextureFeaturesImageFilter::Pointer haralickImageComputer = ScalarImageToHaralickTextureFeaturesImageFilter::New();
-  typename ScalarImageToHaralickTextureFeaturesImageFilter::RadiusType windowRadius; windowRadius.Fill(5);
-  haralickImageComputer->SetInput(rescaler->GetOutput());
-  haralickImageComputer->SetWindowRadius(windowRadius);
-  haralickImageComputer->SetNumberOfBinsPerAxis(PosterizationLevel);
-
-  typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{0, 1}};
-  typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::Pointer offsetV = ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::New();
-  offsetV->push_back(offset1);
-  haralickImageComputer->SetOffsets(offsetV);
-  haralickImageComputer->Update();
-
-  std::cout << "Haralick features computation: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
-
-  // Rescale haralick features
-  ScalarHaralickImageToHaralickImageFilterType::Pointer imageToVectorImageFilter = ScalarHaralickImageToHaralickImageFilterType::New();
-
-  #pragma omp parallel for
-  for(int i = 0; i < 8; ++i)
-  {
-    HaralickImageToScalarImageAdaptorType::Pointer adaptor = HaralickImageToScalarImageAdaptorType::New();
-    adaptor->SelectNthElement(i);
-    adaptor->SetImage(haralickImageComputer->GetOutput());
-
-    ScalarHaralickImageRescaleFilter::Pointer rescaler = ScalarHaralickImageRescaleFilter::New();
-    rescaler->SetInput(adaptor);
-    rescaler->SetOutputMinimum(0.0);
-    rescaler->SetOutputMaximum(1.0);
-
-    rescaler->Update();
-
-    imageToVectorImageFilter->SetInput(i, rescaler->GetOutput());
-  }
-
-  std::cout << "Rescaling: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
-
-  imageToVectorImageFilter->Update();
-
-  std::cout << "Combination: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
-
-  typename NormalizedHaralickImage::Pointer haralickImage = imageToVectorImageFilter->GetOutput();
-  typename ImageType::RegionType requestedRegion = haralickImage->GetLargestPossibleRegion();
+  std::cout << "Computation of Haralick features: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
 
   boost::shared_ptr< TrainingClassVector > training_classes;
   try {
