@@ -4,7 +4,7 @@
 #include "common.h"
 #include "time_utils.h"
 #include "cli_parser.h"
-#include "learning_classes_loader.h"
+#include "learning_classes.h"
 #include "image_loader.h"
 
 #include "itkImageFileWriter.h"

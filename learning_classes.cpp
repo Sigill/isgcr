@@ -1,4 +1,4 @@
-#include "learning_classes_loader.h"
+#include "learning_classes.h"
 
 #include "image_loader.h"
 
