@@ -10,7 +10,7 @@
 #include "itkImageFileWriter.h"
 #include "itkImageRegionIteratorWithIndex.h"
 
-#include "haralick_image.h"
+#include "haralick.h"
 
 #include "doublefann.h"
 

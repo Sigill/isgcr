@@ -3,7 +3,7 @@
 #include "itkRescaleIntensityImageFilter.h"
 #include "itkNthElementImageAdaptor.h"
 
-#include "haralick_image.h"
+#include "haralick.h"
 
 #include "image_loader.h"
 
