@@ -28,7 +28,7 @@ if(OPENMP_FOUND)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp learning_classes.cpp image_loader.cpp haralick.cpp)
+add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp classification.cpp image_loader.cpp haralick.cpp)
 
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
  

@@ -4,7 +4,7 @@
 #include "common.h"
 #include "time_utils.h"
 #include "cli_parser.h"
-#include "learning_classes.h"
+#include "classification.h"
 #include "image_loader.h"
 
 #include "itkImageFileWriter.h"
@@ -17,6 +17,7 @@
 #include "callgrind.h"
 
 const unsigned int posterizationLevel = 16;
+const unsigned int windowRadius = 5;
 
 typedef itk::ImageFileWriter<ImageType> WriterType;
 
@@ -34,7 +35,7 @@ int main(int argc, char **argv)
 
   timestamp_t timestamp_start = get_timestamp();
 
-  typename NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, 5);
+  typename NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, windowRadius);
 
   std::cout << "Computation of Haralick features: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
 

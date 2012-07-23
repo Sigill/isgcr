@@ -1,5 +1,5 @@
-#ifndef LEARNING_CLASSES_H
-#define LEARNING_CLASSES_H
+#ifndef CLASSIFICATION_H
+#define CLASSIFICATION_H
 
 #include "common.h"
 #include "itkImageRegionConstIteratorWithIndex.h"
@@ -27,5 +27,5 @@ boost::shared_ptr<TrainingClassVector> load_classes( const std::vector< std::str
 
 boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<TrainingClassVector> raw_learning_classes );
 
-#endif /* LEARNING_CLASSES_H */
 
+#endif /* CLASSIFICATION_H */
