@@ -28,12 +28,15 @@ if(OPENMP_FOUND)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
+find_package(TULIP3 REQUIRED)
+include_directories(${TULIP_INCLUDE_DIR})
+
 add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp classification.cpp image_loader.cpp haralick.cpp)
 
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
  
 if( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ITKReview ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES})
+  target_link_libraries(main ITKReview ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 else( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES})
+  target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 endif( "${ITK_VERSION_MAJOR}" LESS 4 )

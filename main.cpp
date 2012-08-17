@@ -14,7 +14,14 @@
 
 #include "doublefann.h"
 
+#include <tulip/Graph.h>
+#include <tulip/TlpTools.h>
+#include <tulip/TulipPlugin.h>
+
 #include "callgrind.h"
+
+using namespace tlp;
+using namespace std;
 
 const unsigned int posterizationLevel = 16;
 const unsigned int windowRadius = 5;
@@ -35,7 +42,7 @@ int main(int argc, char **argv)
 
   timestamp_t timestamp_start = get_timestamp();
 
-  typename NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, windowRadius);
+  NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, windowRadius);
 
   std::cout << "Computation of Haralick features: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
 
@@ -48,24 +55,73 @@ int main(int argc, char **argv)
 
   boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
 
-  const unsigned int number_of_classes = training_sets->size();
+  boost::shared_ptr< NeuralNetworkVector > networks = train_neural_networks(training_sets);
 
-  #pragma omp parallel for if(number_of_classes > 1)
-  for(int i = 0; i < number_of_classes; ++i)
+  tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/debug/install/");
+  tlp::loadPlugins(0);
+
+  tlp::DataSet data;
+  data.set<int>("Width", haralickImage->GetLargestPossibleRegion().GetSize()[0]);
+  data.set<int>("Height", haralickImage->GetLargestPossibleRegion().GetSize()[1]);
+  data.set<int>("Depth", haralickImage->GetLargestPossibleRegion().GetSize()[2]);
+  data.set<tlp::StringCollection>("Connectivity", tlp::StringCollection("4"));
+  data.set<bool>("Positionning", true);
+  data.set<double>("Spacing", 1.0);
+
+  for(unsigned int i = 0; i < networks->size(); ++i)
   {
-    std::cout << "Training ann #" << i << std::endl;
-    boost::shared_ptr<TrainingSet> current_training_set = training_sets->operator[](i);
+    std::cout << "Applying CV_Ta algorithm on image #" << i << std::endl;
+    tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
 
-    fann_shuffle_train_data(current_training_set.get());
+    std::cout << "Grid created for image #" << i << std::endl;
 
-    struct fann* ann = fann_create_standard(3, 8, 3, 1);
-    fann_set_activation_function_hidden(ann, FANN_SIGMOID);
-    fann_set_activation_function_output(ann, FANN_SIGMOID);
-    fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
-    fann_set_learning_rate(ann, 0.1);
+    tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
+    weight->setAllEdgeValue(1);
 
-    fann_train_on_data(ann, current_training_set.get(), 1000, 0, 0.0001);
-    std::cout << "MSE for ann #" << i << ": " << fann_get_MSE(ann) << std::endl;
+    tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("Roi");
+    roi->setAllNodeValue(true);
+
+    tlp::BooleanProperty *seed = graph->getLocalProperty<tlp::BooleanProperty>("Seed");
+    roi->setAllNodeValue(true);
+
+    boost::shared_ptr< NeuralNetwork > net = networks->operator[](i);
+
+    tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
+    tlp::node u;
+    tlp::DoubleVectorProperty *f0 = graph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
+    std::vector<double> features(1);
+    while(itNodes->hasNext())
+    {
+      u = itNodes->next();
+      NormalizedHaralickImage::PixelType texture = haralickImage->GetPixel(haralickImage->ComputeIndex(u.id));
+      double* result = fann_run(net.get(), const_cast<fann_type *>(texture.GetDataPointer()));
+      features[0] = result[0];
+      f0->setNodeValue(u, features);
+    }
+    delete itNodes;
+
+    std::cout << "Data copied for image #" << i << std::endl;
+
+    tlp::saveGraph(graph,"graph.tlp");
+
+    string error4;
+    DataSet data4;
+    data4.set<PropertyInterface*>("Data", f0);
+    data4.set<PropertyInterface*>("Mask", graph->getLocalProperty<BooleanProperty>("Seed"));
+    data4.set<unsigned int>("Number of iterations", 100);
+    data4.set<double>("Lambda1", 0.25);
+    data4.set<double>("Lambda2", 0.25);
+    data4.set<PropertyInterface*>("Weight", graph->getLocalProperty<DoubleProperty>("Weight"));
+    data4.set<PropertyInterface*>("Roi", graph->getLocalProperty<BooleanProperty>("Roi"));
+
+    if(!graph->applyAlgorithm("Cv_Ta", error4, &data4)) {
+      std::cerr << "Unable to apply the Cv_Ta algorithm: " << error4 << std::endl;
+      return -1;
+    }
+
+    std::cout << "Regularization done for image #" << i << std::endl;
+
+    delete graph;
   }
 
   /*

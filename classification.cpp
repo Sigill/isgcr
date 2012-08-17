@@ -113,3 +113,36 @@ boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<T
   return learning_classes;
 }
 
+boost::shared_ptr< NeuralNetworkVector > train_neural_networks(boost::shared_ptr<TrainingSetVector> training_sets)
+{
+  const unsigned int number_of_classes = training_sets->size();
+
+  boost::shared_ptr< NeuralNetworkVector > networks(new NeuralNetworkVector());
+
+  for(int i = 0; i < number_of_classes; ++i)
+  {
+    NeuralNetwork* ann = fann_create_standard(3, 8, 3, 1);
+    fann_set_activation_function_hidden(ann, FANN_SIGMOID);
+    fann_set_activation_function_output(ann, FANN_SIGMOID);
+    fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
+    fann_set_learning_rate(ann, 0.1);
+
+    networks->push_back( boost::shared_ptr< NeuralNetwork >( ann, fann_destroy ) );
+  }
+
+  #pragma omp parallel for
+  for(int i = 0; i < number_of_classes; ++i)
+  {
+    std::cout << "Training ann #" << i << std::endl;
+    boost::shared_ptr<NeuralNetwork> current_neural_network = networks->operator[](i);
+    boost::shared_ptr<TrainingSet> current_training_set = training_sets->operator[](i);
+
+    fann_shuffle_train_data(current_training_set.get());
+
+    fann_train_on_data(current_neural_network.get(), current_training_set.get(), 1000, 0, 0.0001);
+    std::cout << "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network.get()) << std::endl;
+  }
+
+  return networks;
+}
+
