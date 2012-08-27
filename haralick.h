@@ -10,6 +10,6 @@ public:
   HaralickImageException ( const std::string &err ) : std::runtime_error (err) {}
 };
 
-NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, const unsigned int _posterizationLevel, const unsigned int _windowRadius);
+NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, const unsigned int _posterizationLevel, const unsigned int _windowRadius, std::vector< unsigned int > _offset);
 
 #endif /* HARALICK_H */

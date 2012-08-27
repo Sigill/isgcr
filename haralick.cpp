@@ -16,7 +16,7 @@ typedef typename ScalarImageToHaralickTextureFeaturesImageFilter::OutputImageTyp
 typedef itk::NthElementImageAdaptor< HaralickImageType, double > HaralickImageToScalarImageAdaptorType;
 typedef itk::RescaleIntensityImageFilter< HaralickImageToScalarImageAdaptorType, ScalarHaralickImageType > ScalarHaralickImageRescaleFilter;
 
-NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, const unsigned int _posterizationLevel, const unsigned int _windowRadius)
+NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, const unsigned int _posterizationLevel, const unsigned int _windowRadius, std::vector< unsigned int > _offset)
 {
   // Read the input image
   ImageType::Pointer image;
@@ -41,7 +41,7 @@ NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, 
     haralickImageComputer->SetWindowRadius(windowRadius);
     haralickImageComputer->SetNumberOfBinsPerAxis(_posterizationLevel);
 
-    typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{1, 0, 0}};
+    typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{_offset[0], _offset[1], _offset[2]}};
     typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::Pointer offsetV = ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::New();
     offsetV->push_back(offset1);
     haralickImageComputer->SetOffsets(offsetV);

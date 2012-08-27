@@ -20,6 +20,7 @@ public:
 	const double get_lambda2() const;
 	const unsigned int get_num_gray() const;
 	const unsigned int get_window_radius() const;
+	const std::vector< unsigned int > get_offset() const;
 
 private:
 	std::string input_image;
@@ -31,6 +32,7 @@ private:
 	double lambda2;
 	unsigned int window_radius;
 	unsigned int num_gray;
+	std::vector< unsigned int > offset;
 };
 
 #endif /* _CLI_OPTIONS_H */
