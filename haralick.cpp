@@ -7,6 +7,8 @@
 
 #include "image_loader.h"
 
+#include "itkImageRegionIteratorWithIndex.h"
+
 typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilter;
 typedef typename itk::Statistics::ScalarImageToHaralickTextureFeaturesImageFilter< ImageType, double > ScalarImageToHaralickTextureFeaturesImageFilter;
 typedef typename ScalarImageToHaralickTextureFeaturesImageFilter::OutputImageType HaralickImageType;
@@ -29,7 +31,7 @@ NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, 
     typename RescaleFilter::Pointer rescaler = RescaleFilter::New();
     rescaler->SetInput(image);
     rescaler->SetOutputMinimum(0);
-    rescaler->SetOutputMaximum(_posterizationLevel);
+    rescaler->SetOutputMaximum(_posterizationLevel - 1);
     rescaler->Update();
 
     // Compute the haralick features
@@ -39,7 +41,7 @@ NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, 
     haralickImageComputer->SetWindowRadius(windowRadius);
     haralickImageComputer->SetNumberOfBinsPerAxis(_posterizationLevel);
 
-    typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{0, 1}};
+    typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetType offset1 = {{1, 0, 0}};
     typename ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::Pointer offsetV = ScalarImageToHaralickTextureFeaturesImageFilter::OffsetVectorType::New();
     offsetV->push_back(offset1);
     haralickImageComputer->SetOffsets(offsetV);
