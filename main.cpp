@@ -41,10 +41,11 @@ int main(int argc, char **argv)
 	if(parse_result <= 0)
 		exit(parse_result);
 
+	// Creation of the export folders for each class
 	for(int i = 0; i < cli_parser.get_class_images().size(); ++i)
 	{
 		std::ostringstream output_dir;
-		output_dir << "/tmp/export_cv_ta/" << std::setfill('0') << std::setw(6) << i;
+		output_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
 		boost::filesystem::path path_output_dir(output_dir.str());
 
@@ -84,7 +85,7 @@ int main(int argc, char **argv)
 	for(int i = 0; i < training_classes->size(); ++i)
 	{
 		std::ostringstream output_file;
-		output_file << "/tmp/export_cv_ta/training_set_" << std::setfill('0') << std::setw(6) << i << ".data";
+		output_file << cli_parser.get_export_dir() << "/training_set_" << std::setfill('0') << std::setw(6) << i << ".data";
 		fann_save_train(training_sets->operator[](i).get(), output_file.str().c_str());
 	}
 
@@ -143,11 +144,11 @@ int main(int argc, char **argv)
 		std::cout << "Data copied for image #" << i << std::endl;
 
 		std::ostringstream output_graph;
-		output_graph << "/tmp/export_cv_ta/" << "graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
+		output_graph << cli_parser.get_export_dir() << "/graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
 		tlp::saveGraph(graph, output_graph.str());
 
 		std::ostringstream output_dir;
-		output_dir << "/tmp/export_cv_ta/" << std::setfill('0') << std::setw(6) << i;
+		output_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
 		DataSet data4;
 		data4.set<PropertyInterface*>("Data", f0);
