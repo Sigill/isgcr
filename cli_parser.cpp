@@ -13,7 +13,11 @@ int CliParser::parse_argv(int argc, char ** argv)
 		("help,h", "Produce help message")
 		("input-image,i", po::value< std::string >(&(this->input_image)), "Input image")
 		("class-image,c", po::value< std::vector< std::string > >(&(this->class_images)), "Defines a class to be learned from a binary image")
-		("export-dir,e", po::value< std::string >(&(this->export_dir)), "Export directory")
+		("export-dir,E", po::value< std::string >(&(this->export_dir)), "Export directory")
+		("export-interval,e", po::value< unsigned int >(&(this->export_interval)), "Export interval during regularization")
+		("num-iter,n", po::value< unsigned int >(&(this->num_iter)), "Number of iterations for the regularization")
+		("lambda1", po::value< double >(&(this->lambda1)), "Lambda 1 parameter for regularization")
+		("lambda2", po::value< double >(&(this->lambda2)), "Lambda 2 parameter for regularization")
 			;
 
 	po::variables_map vm;
@@ -77,6 +81,30 @@ int CliParser::parse_argv(int argc, char ** argv)
 		return -1;
 	}
 
+	if(!vm.count("export-interval"))
+	{
+		this->export_interval = 0;
+	}
+	std::cout << "Export interval during regularization: " << this->export_interval << std::endl;
+
+	if(!vm.count("num-iter"))
+	{
+		this->num_iter = 0;
+	}
+	std::cout << "Number of iterations for regularization: " << this->num_iter << std::endl;
+
+	if(!vm.count("lambda1"))
+	{
+		this->lambda1 = 1.0;
+	}
+	std::cout << "Lambda1 parameter for regularization: " << this->lambda1 << std::endl;
+
+	if(!vm.count("lambda2"))
+	{
+		this->lambda2 = 1.0;
+	}
+	std::cout << "Lambda2 parameter for regularization: " << this->lambda2 << std::endl;
+
 	return 1;
 }
 
@@ -95,3 +123,20 @@ const std::string CliParser::get_export_dir() const
 	return this->export_dir;
 }
 
+const unsigned int CliParser::get_export_interval() const
+{
+	return this->export_interval;
+}
+
+const unsigned int CliParser::get_num_iter() const
+{
+	return this->num_iter;
+}
+
+const double CliParser::get_lambda1() const {
+	return this->lambda1;
+}
+
+const double CliParser::get_lambda2() const {
+	return this->lambda2;
+}

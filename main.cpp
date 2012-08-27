@@ -153,10 +153,10 @@ int main(int argc, char **argv)
 		DataSet data4;
 		data4.set<PropertyInterface*>("Data", f0);
 		data4.set<PropertyInterface*>("Mask", graph->getLocalProperty<BooleanProperty>("Seed"));
-		data4.set<unsigned int>("Number of iterations", 100);
-		data4.set<double>("Lambda1", 0.25);
-		data4.set<double>("Lambda2", 0.25);
-		data4.set<unsigned int>("Export interval", 50);
+		data4.set<unsigned int>("Number of iterations", cli_parser.get_num_iter());
+		data4.set<double>("Lambda1", cli_parser.get_lambda1());
+		data4.set<double>("Lambda2", cli_parser.get_lambda2());
+		data4.set<unsigned int>("Export interval", cli_parser.get_export_interval());
 		data4.set<string>("dir::Export directory", output_dir.str());
 		data4.set<PropertyInterface*>("Weight", graph->getLocalProperty<DoubleProperty>("Weight"));
 		data4.set<PropertyInterface*>("Roi", graph->getLocalProperty<BooleanProperty>("Roi"));
