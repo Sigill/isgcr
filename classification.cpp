@@ -80,7 +80,7 @@ boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<T
       std::copy((*current_raw_class_it).GetDataPointer(), (*current_raw_class_it).GetDataPointer() + 8, *training_data_input_it);
 
       **training_data_output_it = 0;
-      
+
       ++current_raw_class_it;
       ++training_data_input_it;
       ++training_data_output_it;
