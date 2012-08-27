@@ -25,9 +25,6 @@
 using namespace tlp;
 using namespace std;
 
-const unsigned int posterizationLevel = 16;
-const unsigned int windowRadius = 5;
-
 typedef itk::ImageFileWriter<ImageType> WriterType;
 
 typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageIterator;
@@ -69,7 +66,7 @@ int main(int argc, char **argv)
 
 	timestamp_t timestamp_start = get_timestamp();
 
-	NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), posterizationLevel, windowRadius);
+	NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), cli_parser.get_num_gray(), cli_parser.get_window_radius());
 
 	std::cout << "Computation of Haralick features: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
 
@@ -161,6 +158,7 @@ int main(int argc, char **argv)
 		data4.set<PropertyInterface*>("Weight", graph->getLocalProperty<DoubleProperty>("Weight"));
 		data4.set<PropertyInterface*>("Roi", graph->getLocalProperty<BooleanProperty>("Roi"));
 
+		std::cout << "Applying the Cv_Ta algorithm on image #" << i << std::endl;
 		string error4;
 		if(!graph->applyAlgorithm("Cv_Ta", error4, &data4)) {
 			std::cerr << "Unable to apply the Cv_Ta algorithm: " << error4 << std::endl;

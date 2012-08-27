@@ -18,6 +18,8 @@ int CliParser::parse_argv(int argc, char ** argv)
 		("num-iter,n", po::value< unsigned int >(&(this->num_iter)), "Number of iterations for the regularization")
 		("lambda1", po::value< double >(&(this->lambda1)), "Lambda 1 parameter for regularization")
 		("lambda2", po::value< double >(&(this->lambda2)), "Lambda 2 parameter for regularization")
+		("num-gray", po::value< unsigned int >(&(this->num_gray)), "Number of gray levels used to compute the texture characteristics")
+		("window_radius", po::value< unsigned int >(&(this->window_radius)), "Radius of the window used to compute the texture characteristics")
 			;
 
 	po::variables_map vm;
@@ -105,6 +107,18 @@ int CliParser::parse_argv(int argc, char ** argv)
 	}
 	std::cout << "Lambda2 parameter for regularization: " << this->lambda2 << std::endl;
 
+	if(!vm.count("num-gray"))
+	{
+		this->num_gray = 16;
+	}
+	std::cout << "Number of gray levels: " << this->num_gray << std::endl;
+
+	if(!vm.count("window-radius"))
+	{
+		this->window_radius = 5;
+	}
+	std::cout << "Radius of the window: " << this->window_radius << std::endl;
+
 	return 1;
 }
 
@@ -139,4 +153,12 @@ const double CliParser::get_lambda1() const {
 
 const double CliParser::get_lambda2() const {
 	return this->lambda2;
+}
+
+const unsigned int CliParser::get_num_gray() const {
+	return this->num_gray;
+}
+
+const unsigned int CliParser::get_window_radius() const {
+	return this->window_radius;
 }
