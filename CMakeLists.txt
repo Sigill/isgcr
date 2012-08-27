@@ -23,20 +23,32 @@ include_directories(${VALGRIND_INCLUDE_DIR})
 
 include(FindOpenMP)
 if(OPENMP_FOUND)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
 find_package(TULIP3 REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
 
-add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp classification.cpp image_loader.cpp haralick.cpp)
+add_library(image_loader STATIC image_loader.cpp)
+add_library(haralick STATIC haralick.cpp)
+add_library(classification STATIC classification.cpp)
+
+add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp)
 
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
  
 if( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ITKReview ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
+	target_link_libraries(image_loader ITKReview ${ITK_LIBRARIES} ${Boost_LIBRARIES})
+	target_link_libraries(haralick ITKReview image_loader ${ITK_LIBRARIES})
+	target_link_libraries(classification ITKReview image_loader ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES})
+
+	target_link_libraries(main ITKReview image_loader haralick classification ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 else( "${ITK_VERSION_MAJOR}" LESS 4 )
-  target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${FANN_STATIC_FLOAT_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
+	target_link_libraries(image_loader ${ITK_LIBRARIES} ${Boost_LIBRARIES})
+	target_link_libraries(haralick image_loader ${ITK_LIBRARIES})
+	target_link_libraries(classification image_loader ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES})
+
+	target_link_libraries(main image_loader haralick classification ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 endif( "${ITK_VERSION_MAJOR}" LESS 4 )
