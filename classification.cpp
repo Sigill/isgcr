@@ -24,7 +24,7 @@ boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::stri
     if(image->GetLargestPossibleRegion().GetSize() != haralickImage->GetLargestPossibleRegion().GetSize())
     {
       std::stringstream err;
-      err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << " differs from the dimensions of the image (" << haralickImage->GetLargestPossibleRegion().GetSize();
+      err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << ") differs from the dimensions of the image (" << haralickImage->GetLargestPossibleRegion().GetSize() << ")";
       throw LearningClassException(err.str());
     }
 

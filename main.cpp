@@ -1,14 +1,12 @@
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 #include "common.h"
 #include "time_utils.h"
 #include "cli_parser.h"
 #include "classification.h"
 #include "image_loader.h"
-
-#include "itkImageFileWriter.h"
-#include "itkImageRegionIteratorWithIndex.h"
 
 #include "haralick.h"
 
@@ -20,16 +18,13 @@
 
 #include <boost/filesystem.hpp>
 
+#include <itkImageSeriesWriter.h>
+#include <itkNumericSeriesFileNames.h>
+
 #include "callgrind.h"
 
 using namespace tlp;
 using namespace std;
-
-typedef itk::ImageFileWriter<ImageType> WriterType;
-
-typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageIterator;
-
-typedef ::itk::Size< __ImageDimension > RadiusType;
 
 int main(int argc, char **argv)
 {
@@ -102,77 +97,182 @@ int main(int argc, char **argv)
 	data.set<bool>("Positionning", true);
 	data.set<double>("Spacing", 1.0);
 
-	for(unsigned int i = 0; i < networks->size(); ++i)
+
+	tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
+
+	std::cout << "Graph structure created" << std::endl;
+
+	tlp::BooleanProperty *everything = graph->getLocalProperty<tlp::BooleanProperty>("everything");
+	everything->setAllNodeValue(true);
+	everything->setAllEdgeValue(true);
+
+	tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("Roi");
+	roi->setAllNodeValue(true);
+
+	tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
+	weight->setAllEdgeValue(1);
+
+	tlp::BooleanProperty *seed = graph->getLocalProperty<tlp::BooleanProperty>("Seed");
+	seed->setAllNodeValue(false);
+
 	{
-		std::cout << "Applying CV_Ta algorithm on image #" << i << std::endl;
-		tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
-
-		std::cout << "Grid created for image #" << i << std::endl;
-
-		tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
-		weight->setAllEdgeValue(1);
-
-		tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("Roi");
-		roi->setAllNodeValue(true);
-
-		tlp::BooleanProperty *seed = graph->getLocalProperty<tlp::BooleanProperty>("Seed");
-		roi->setAllNodeValue(true);
-
-		boost::shared_ptr< NeuralNetwork > net = networks->operator[](i);
-
 		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
-		tlp::DoubleVectorProperty *f0 = graph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
+
 		tlp::DoubleVectorProperty *haralick = graph->getLocalProperty<tlp::DoubleVectorProperty>("haralick_feature");
-		std::vector<double> features(1);
+
 		const double *haralick_features_tmp;
 		std::vector<double> haralick_features(8);
+
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
 			NormalizedHaralickImage::PixelType texture = haralickImage->GetPixel(haralickImage->ComputeIndex(u.id));
-			double* result = fann_run(net.get(), const_cast<fann_type *>(texture.GetDataPointer()));
-			features[0] = result[0];
-			f0->setNodeValue(u, features);
 
 			haralick_features_tmp = texture.GetDataPointer();
 			haralick_features.assign(haralick_features_tmp, haralick_features_tmp+8);
 			haralick->setNodeValue(u, haralick_features);
 		}
 		delete itNodes;
+	}
 
-		std::cout << "Data copied for image #" << i << std::endl;
+	std::cout << "Haralick features copied" << std::endl;
 
-		std::ostringstream output_graph;
-		output_graph << cli_parser.get_export_dir() << "/graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
-		tlp::saveGraph(graph, output_graph.str());
+	std::vector< tlp::DoubleProperty* > regularized_segmentations(networks->size()); 
+
+	for(unsigned int i = 0; i < networks->size(); ++i)
+	{
+		std::ostringstream graph_name;
+		graph_name << std::setfill('0') << std::setw(6) << i;
+
+		tlp::Graph* subgraph = graph->addSubGraph(everything, 0, graph_name.str());
+
+		boost::shared_ptr< NeuralNetwork > net = networks->operator[](i);
+
+		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
+		tlp::node u;
+		tlp::DoubleVectorProperty *f0 = subgraph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
+		tlp::DoubleVectorProperty *haralick = subgraph->getProperty<tlp::DoubleVectorProperty>("haralick_feature");
+		std::vector<double> features(1);
+
+		while(itNodes->hasNext())
+		{
+			u = itNodes->next();
+			double* result = fann_run( net.get(), const_cast<fann_type *>( &(haralick->getNodeValue(u)[0]) ) );
+			features[0] = result[0];
+			f0->setNodeValue(u, features);
+		}
+		delete itNodes;
+
+		std::cout << "Data classification done for image #" << i << std::endl;
+
+		std::cout << "Applying CV_Ta algorithm on image #" << i << std::endl;
+
+		{
+			std::ostringstream output_graph;
+			output_graph << cli_parser.get_export_dir() << "/graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
+			tlp::saveGraph(subgraph, output_graph.str());
+		}
 
 		std::ostringstream output_dir;
 		output_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
 		DataSet data4;
 		data4.set<PropertyInterface*>("Data", f0);
-		data4.set<PropertyInterface*>("Mask", graph->getLocalProperty<BooleanProperty>("Seed"));
+		data4.set<PropertyInterface*>("Mask", seed);
 		data4.set<unsigned int>("Number of iterations", cli_parser.get_num_iter());
 		data4.set<double>("Lambda1", cli_parser.get_lambda1());
 		data4.set<double>("Lambda2", cli_parser.get_lambda2());
 		data4.set<unsigned int>("Export interval", cli_parser.get_export_interval());
 		data4.set<string>("dir::Export directory", output_dir.str());
-		data4.set<PropertyInterface*>("Weight", graph->getLocalProperty<DoubleProperty>("Weight"));
-		data4.set<PropertyInterface*>("Roi", graph->getLocalProperty<BooleanProperty>("Roi"));
+		data4.set<PropertyInterface*>("Weight", weight);
+		data4.set<PropertyInterface*>("Roi", roi);
 
 		std::cout << "Applying the Cv_Ta algorithm on image #" << i << std::endl;
 		string error4;
-		if(!graph->applyAlgorithm("Cv_Ta", error4, &data4)) {
+		if(!subgraph->applyAlgorithm("Cv_Ta", error4, &data4)) {
 			std::cerr << "Unable to apply the Cv_Ta algorithm: " << error4 << std::endl;
 			return -1;
 		}
 
-		std::cout << "Regularization done for image #" << i << std::endl;
+		regularized_segmentations[i] = subgraph->getLocalProperty< DoubleProperty >("fn");
 
-		delete graph;
+		std::cout << "Regularization done for image #" << i << std::endl;
 	}
 
+	tlp::saveGraph(graph, cli_parser.get_export_dir() + "/" + "graph.tlp");
+
+	ImageType::Pointer classification_image = ImageType::New();
+	classification_image->SetRegions(haralickImage->GetLargestPossibleRegion());
+	classification_image->Allocate();
+	ImageType::IndexType index;
+
+	int width, height, depth;
+	unsigned int id;
+
+	graph->getAttribute<int>("width", width);
+	graph->getAttribute<int>("height", height);
+	graph->getAttribute<int>("depth", depth);
+
+	tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
+	tlp::node u;
+	std::vector< double > values(networks->size());
+
+	std::vector< double >::iterator max_it;
+	unsigned int max_pos;
+
+	while(itNodes->hasNext())
+	{
+		u = itNodes->next();
+
+		id = u.id;
+		index[0] =  id % width;
+		id /= width;
+		index[1] = id % height;
+		id /= height;
+		index[2] = id;
+
+		for(unsigned int i = 0; i < networks->size(); ++i)
+		{
+			values[i] = regularized_segmentations[i]->getNodeValue(u);
+		}
+
+		max_it = std::max_element(values.begin(), values.end());
+
+		if(*max_it < 0.9)
+			max_pos = networks->size();
+		else
+			max_pos = std::distance(values.begin(), max_it);
+
+		classification_image->SetPixel(index, max_pos);
+
+		//copy( &values[0], &values[networks->size()], std::ostream_iterator< double >(std::cout, ", "));
+		//std::cout << std::endl;
+	}
+	delete itNodes;
+
+	std::string final_output = cli_parser.get_export_dir() + "/final";
+	if(!boost::filesystem::create_directories(boost::filesystem::path(final_output)))
+	{
+		std::cerr << final_output << " cannot be created" << std::endl;
+		return -1;
+	}
+
+	itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
+	final_output = final_output + "/%06d.bmp";
+	outputNames->SetSeriesFormat(final_output.c_str());
+	outputNames->SetStartIndex(1);
+	outputNames->SetEndIndex(depth);
+
+
+	typedef itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 > > WriterType;
+	WriterType::Pointer writer = WriterType::New();
+	writer->SetInput(classification_image);
+	//writer->SetSeriesFormat(final_output.c_str());
+	writer->SetFileNames(outputNames->GetFileNames());
+	writer->Update();
+
+	delete graph;
 
 	return 0;
 }
