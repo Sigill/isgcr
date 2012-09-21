@@ -14,16 +14,16 @@ typedef itk::ImageSeriesReader< ImageType > ImageSeriesReader;
 
 ImageType::Pointer ImageLoader::load(const std::string filename) throw(ImageLoadingException)
 {
-  std::cout << "Loading " << filename << std::endl;
+  std::cerr << "Loading " << filename << std::endl;
   try
   {
     boost::filesystem::path path(filename);
     if(boost::filesystem::is_directory(path))
     {
-      std::cout << "\t" << filename << " is a folder" << std::endl;
+      std::cerr << "\t" << filename << " is a folder" << std::endl;
       return loadImageSerie(filename);
     } else {
-      std::cout << "\t" << filename << " is a file" << std::endl;
+      std::cerr << "\t" << filename << " is a file" << std::endl;
       return loadImage(filename);
     }
   } catch(boost::filesystem::filesystem_error & ex) {
@@ -67,7 +67,7 @@ ImageType::Pointer ImageLoader::loadImageSerie(const std::string filename) throw
       boost::smatch match;
       if( !boost::regex_match( dir_iter->path().filename().string(), match, pattern ) ) continue;
 
-      std::cout << "\tLoading " << boost::filesystem::absolute(dir_iter->path()).string() << std::endl;
+      std::cerr << "\tLoading " << boost::filesystem::absolute(dir_iter->path()).string() << std::endl;
       filenames.push_back(boost::filesystem::absolute(dir_iter->path()).string());
     }
   }

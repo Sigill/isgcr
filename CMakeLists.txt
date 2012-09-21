@@ -34,21 +34,24 @@ include_directories(${TULIP_INCLUDE_DIR})
 add_library(image_loader STATIC image_loader.cpp)
 add_library(haralick STATIC haralick.cpp)
 add_library(classification STATIC classification.cpp)
+add_library(console_plugin_progress STATIC ConsolePluginProgress.cpp)
 
 add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp)
 
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
+
+target_link_libraries(console_plugin_progress ${TULIP_LIBRARY})
  
 if( "${ITK_VERSION_MAJOR}" LESS 4 )
 	target_link_libraries(image_loader ITKReview ${ITK_LIBRARIES} ${Boost_LIBRARIES})
 	target_link_libraries(haralick ITKReview image_loader ${ITK_LIBRARIES})
 	target_link_libraries(classification ITKReview image_loader ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES})
 
-	target_link_libraries(main ITKReview image_loader haralick classification ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
+	target_link_libraries(main ITKReview image_loader haralick classification console_plugin_progress ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 else( "${ITK_VERSION_MAJOR}" LESS 4 )
 	target_link_libraries(image_loader ${ITK_LIBRARIES} ${Boost_LIBRARIES})
 	target_link_libraries(haralick image_loader ${ITK_LIBRARIES})
 	target_link_libraries(classification image_loader ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES})
 
-	target_link_libraries(main image_loader haralick classification ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
+	target_link_libraries(main image_loader haralick classification console_plugin_progress ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY})
 endif( "${ITK_VERSION_MAJOR}" LESS 4 )
