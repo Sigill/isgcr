@@ -21,13 +21,42 @@
 #include <itkImageSeriesWriter.h>
 #include <itkNumericSeriesFileNames.h>
 
+#include <itkBinaryThresholdImageFilter.h>
+
+#include "ConsolePluginProgress.h"
+
+#include "Logger.h"
+
 #include "callgrind.h"
 
 using namespace tlp;
 using namespace std;
 
+#define LOG(MESSAGE) \
+	do {\
+		std::ostringstream m;\
+		m << MESSAGE << std::endl;\
+		pp.setComment(m.str());\
+	} while(0)
+
+#define LOG_BEGIN(MESSAGE) \
+	do {\
+		pp.setComment(MESSAGE);\
+	} while(0)
+
+#define LOG_END() \
+	do {\
+		std::ostringstream m;\
+		m << "Done (" << elapsed_time(last_timestamp, get_timestamp()) << "s)";\
+		last_timestamp = get_timestamp();\
+		pp.setComment(m.str());\
+	} while(0)
+
 int main(int argc, char **argv)
 {
+	ConsolePluginProgress pp;
+	log4cxx::LoggerPtr logger = Logger::getInstance();
+
 	CliParser cli_parser;
 	int parse_result = cli_parser.parse_argv(argc, argv);
 	if(parse_result <= 0)
@@ -36,43 +65,56 @@ int main(int argc, char **argv)
 	// Creation of the export folders for each class
 	for(int i = 0; i < cli_parser.get_class_images().size(); ++i)
 	{
-		std::ostringstream output_dir;
-		output_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
+		std::ostringstream export_dir;
+		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
-		boost::filesystem::path path_output_dir(output_dir.str());
+		boost::filesystem::path path_export_dir(export_dir.str());
 
-		if(boost::filesystem::exists(path_output_dir)) {
-			if(boost::filesystem::is_directory(path_output_dir)) {
-				if(!boost::filesystem::is_empty(path_output_dir)) {
-					std::cerr << "Output dir (" << path_output_dir.string() << ") exists but is not empty" << std::endl;
+		if(boost::filesystem::exists(path_export_dir)) {
+			if(boost::filesystem::is_directory(path_export_dir)) {
+				if(!boost::filesystem::is_empty(path_export_dir)) {
+					LOG4CXX_INFO(logger, "Output dir (" << path_export_dir.string() << ") exists but is not empty");
+					LOG("Output dir (" << path_export_dir.string() << ") exists but is not empty");
 					return -1;
 				}
 			} else {
-				std::cerr << "Output dir (" << path_output_dir.string() << ") already exists as a file" << std::endl;
+				LOG("Output dir (" << path_export_dir.string() << ") already exists as a file");
 				return -1;
 			}
 		} else {
-			if(!boost::filesystem::create_directories(path_output_dir)) {
-				std::cerr << "Output dir (" << path_output_dir.string() << ") cannot be created" << std::endl;
+			if(!boost::filesystem::create_directories(path_export_dir)) {
+				LOG("Output dir (" << path_export_dir.string() << ") cannot be created");
 				return -1;
 			}
 		}
 	}
 
-	timestamp_t timestamp_start = get_timestamp();
+	timestamp_t last_timestamp = get_timestamp();
+
+	LOG_BEGIN("Computing Haralick features");
 
 	NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), cli_parser.get_num_gray(), cli_parser.get_window_radius(), cli_parser.get_offset());
 
-	std::cout << "Computation of Haralick features: " << elapsed_time(timestamp_start, get_timestamp()) << "s" << std::endl;
+	LOG_END();
+
+	LOG_BEGIN("Loading training classes");
 
 	boost::shared_ptr< TrainingClassVector > training_classes;
 	try {
 		training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
 	} catch (LearningClassException & ex) {
-		std::cerr << "Unable to load the training classes: " << ex.what() << std::endl;
+		LOG("Unable to load the training classes: " << ex.what());
+		exit(-1);
 	}
 
+	LOG_END();
+
+
+	LOG_BEGIN("Generating training sets");
+
 	boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
+
+	LOG_END();
 
 	/*
 	// To export the training set
@@ -84,10 +126,16 @@ int main(int argc, char **argv)
 	}
 	*/
 
+	LOG_BEGIN("Training neural networks");
+
 	boost::shared_ptr< NeuralNetworkVector > networks = train_neural_networks(training_sets);
+
+	LOG_END();
 
 	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/debug/install/");
 	tlp::loadPlugins(0);
+
+	LOG_BEGIN("Generating graph structure");
 
 	tlp::DataSet data;
 	data.set<int>("Width", haralickImage->GetLargestPossibleRegion().GetSize()[0]);
@@ -97,10 +145,9 @@ int main(int argc, char **argv)
 	data.set<bool>("Positionning", true);
 	data.set<double>("Spacing", 1.0);
 
-
 	tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
 
-	std::cout << "Graph structure created" << std::endl;
+	LOG_END();
 
 	tlp::BooleanProperty *everything = graph->getLocalProperty<tlp::BooleanProperty>("everything");
 	everything->setAllNodeValue(true);
@@ -174,8 +221,8 @@ int main(int argc, char **argv)
 			tlp::saveGraph(subgraph, output_graph.str());
 		}
 
-		std::ostringstream output_dir;
-		output_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
+		std::ostringstream export_dir;
+		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
 		DataSet data4;
 		data4.set<PropertyInterface*>("Data", f0);
@@ -184,7 +231,7 @@ int main(int argc, char **argv)
 		data4.set<double>("Lambda1", cli_parser.get_lambda1());
 		data4.set<double>("Lambda2", cli_parser.get_lambda2());
 		data4.set<unsigned int>("Export interval", cli_parser.get_export_interval());
-		data4.set<string>("dir::Export directory", output_dir.str());
+		data4.set<string>("dir::Export directory", export_dir.str());
 		data4.set<PropertyInterface*>("Weight", weight);
 		data4.set<PropertyInterface*>("Roi", roi);
 
@@ -251,26 +298,49 @@ int main(int argc, char **argv)
 	}
 	delete itNodes;
 
-	std::string final_output = cli_parser.get_export_dir() + "/final";
-	if(!boost::filesystem::create_directories(boost::filesystem::path(final_output)))
+	std::string final_export_dir = cli_parser.get_export_dir() + "/final_export";
+	if(!boost::filesystem::create_directories(boost::filesystem::path(final_export_dir)))
 	{
-		std::cerr << final_output << " cannot be created" << std::endl;
+		std::cerr << final_export_dir << " cannot be created" << std::endl;
 		return -1;
 	}
 
-	itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
-	final_output = final_output + "/%06d.bmp";
-	outputNames->SetSeriesFormat(final_output.c_str());
-	outputNames->SetStartIndex(1);
-	outputNames->SetEndIndex(depth);
+	for(int i = 0; i <= networks->size(); ++i)
+	{
+		std::ostringstream class_name;
+		if(i < networks->size())
+		{
+			class_name << std::setfill('0') << std::setw(6) << i;
+		} else {
+			class_name << "rejected";
+		}
 
+		std::string final_class_export_dir = final_export_dir + "/" + class_name.str();
+		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
+		{
+			std::cerr << final_class_export_dir << " cannot be created" << std::endl;
+			return -1;
+		}
 
-	typedef itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 > > WriterType;
-	WriterType::Pointer writer = WriterType::New();
-	writer->SetInput(classification_image);
-	//writer->SetSeriesFormat(final_output.c_str());
-	writer->SetFileNames(outputNames->GetFileNames());
-	writer->Update();
+		itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
+		final_class_export_dir = final_class_export_dir + "/%06d.bmp";
+		outputNames->SetSeriesFormat(final_class_export_dir.c_str());
+		outputNames->SetStartIndex(0);
+		outputNames->SetEndIndex(depth - 1);
+
+		typedef itk::BinaryThresholdImageFilter< ImageType, ImageType > Thresholder;
+		Thresholder::Pointer thresholder = Thresholder::New();
+		thresholder->SetLowerThreshold(i);
+		thresholder->SetUpperThreshold(i);
+		thresholder->SetInput(classification_image);
+
+		typedef itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 > > WriterType;
+		WriterType::Pointer writer = WriterType::New();
+		writer->SetInput(thresholder->GetOutput());
+		//writer->SetSeriesFormat(final_export_dir.c_str());
+		writer->SetFileNames(outputNames->GetFileNames());
+		writer->Update();
+	}
 
 	delete graph;
 

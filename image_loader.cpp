@@ -8,87 +8,114 @@
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 
+#include "Logger.h"
+
 typedef itk::ImageFileReader< ImageType > ImageReader;
 typedef itk::ImageSeriesReader< ImageType > ImageSeriesReader;
 
 
-ImageType::Pointer ImageLoader::load(const std::string filename) throw(ImageLoadingException)
+ImageType::Pointer ImageLoader::load(const std::string filename)
 {
-  std::cerr << "Loading " << filename << std::endl;
-  try
-  {
-    boost::filesystem::path path(filename);
-    if(boost::filesystem::is_directory(path))
-    {
-      std::cerr << "\t" << filename << " is a folder" << std::endl;
-      return loadImageSerie(filename);
-    } else {
-      std::cerr << "\t" << filename << " is a file" << std::endl;
-      return loadImage(filename);
-    }
-  } catch(boost::filesystem::filesystem_error & ex) {
-    std::stringstream err;
-    err << filename << " cannot be read" << std::endl;
-    throw new ImageLoadingException(err.str());
-  }
+	log4cxx::LoggerPtr logger = Logger::getInstance();
+
+	LOG4CXX_INFO(logger, "Loading \"" << filename << "\"");
+
+	try
+	{
+		boost::filesystem::path path(filename);
+
+		if(boost::filesystem::exists(path)) {
+			if(boost::filesystem::is_directory(path))
+			{
+				LOG4CXX_DEBUG(logger, "\"" << filename << "\"" << " is a folder");
+
+				return loadImageSerie(filename);
+			} else {
+				LOG4CXX_DEBUG(logger, "\"" << filename << "\"" << " is a file");
+
+				return loadImage(filename);
+			}
+		} else {
+			std::stringstream err;
+			err << "\"" << filename << "\" does not exists";
+
+			LOG4CXX_FATAL(logger, err.str());
+
+			throw ImageLoadingException(err.str());
+		}
+	} catch(boost::filesystem::filesystem_error &ex) {
+		std::stringstream err;
+		err << filename << " cannot be read (" << ex.what() << ")" << std::endl;
+		throw ImageLoadingException(err.str());
+	}
 }
 
-ImageType::Pointer ImageLoader::loadImage(const std::string filename) throw(ImageLoadingException)
+ImageType::Pointer ImageLoader::loadImage(const std::string filename)
 {
-  typename ImageReader::Pointer reader = ImageReader::New();
+	typename ImageReader::Pointer reader = ImageReader::New();
 
-  reader->SetFileName(filename);
+	reader->SetFileName(filename);
 
-  try {
-    reader->Update();
-  }
-  catch( itk::ExceptionObject & err )
-  {
-    throw ImageLoadingException(err.what());
-  }
+	try {
+		reader->Update();
+	}
+	catch( itk::ExceptionObject &ex )
+	{
+		std::stringstream err;
+		err << "ITK is unable to load the image \"" << filename << "\" (" << ex.what() << ")";
 
-  return reader->GetOutput();
+		throw ImageLoadingException(err.str());
+	}
+
+	return reader->GetOutput();
 }
 
-ImageType::Pointer ImageLoader::loadImageSerie(const std::string filename) throw(ImageLoadingException)
+ImageType::Pointer ImageLoader::loadImageSerie(const std::string filename)
 {
-  typename ImageSeriesReader::Pointer reader = ImageSeriesReader::New();
+	typename ImageSeriesReader::Pointer reader = ImageSeriesReader::New();
 
-  typename ImageSeriesReader::FileNamesContainer filenames;
+	typename ImageSeriesReader::FileNamesContainer filenames;
 
-  try
-  {
-    boost::filesystem::path path(filename);
-    boost::filesystem::directory_iterator end_iter;
-    boost::regex pattern(".*\\.((?:png)|(?:bmp)|(?:jpe?g))", boost::regex::icase);
+	log4cxx::LoggerPtr logger = Logger::getInstance();
 
-    for( boost::filesystem::directory_iterator dir_iter(path) ; dir_iter != end_iter ; ++dir_iter)
-    {
-      boost::smatch match;
-      if( !boost::regex_match( dir_iter->path().filename().string(), match, pattern ) ) continue;
+	try
+	{
+		boost::filesystem::path path(filename);
+		boost::filesystem::directory_iterator end_iter;
+		boost::regex pattern(".*\\.((?:png)|(?:bmp)|(?:jpe?g))", boost::regex::icase);
 
-      std::cerr << "\tLoading " << boost::filesystem::absolute(dir_iter->path()).string() << std::endl;
-      filenames.push_back(boost::filesystem::absolute(dir_iter->path()).string());
-    }
-  }
-  catch(boost::filesystem::filesystem_error e) {
-    std::stringstream err;
-    err << "Something wrong happened while listing the files in " << filename;
-    throw ImageLoadingException(err.str());
-  }
+		for( boost::filesystem::directory_iterator dir_iter(path) ; dir_iter != end_iter ; ++dir_iter)
+		{
+			boost::smatch match;
+			if( !boost::regex_match( dir_iter->path().filename().string(), match, pattern ) ) continue;
 
-  std::sort(filenames.begin(), filenames.end());
+			LOG4CXX_DEBUG(logger, "Loading \"" << boost::filesystem::absolute(dir_iter->path()).string() << "\"");
 
-  reader->SetFileNames(filenames);
+			filenames.push_back(boost::filesystem::absolute(dir_iter->path()).string());
+		}
+	}
+	catch(boost::filesystem::filesystem_error &ex) {
+		std::stringstream err;
+		err << filename << " cannot be read (" << ex.what() << ")" << std::endl;
 
-  try {
-    reader->Update();
-  }
-  catch( itk::ExceptionObject & err )
-  {
-    throw ImageLoadingException(err.what());
-  }
+		throw ImageLoadingException(err.str());
+	}
 
-  return reader->GetOutput();
+	std::sort(filenames.begin(), filenames.end());
+
+	reader->SetFileNames(filenames);
+
+	try {
+		reader->Update();
+	}
+	catch( itk::ExceptionObject &ex )
+	{
+		std::stringstream err;
+		err << "ITK is unable to load the image serie located in \"" << filename << "\" (" << ex.what() << ")";
+
+		throw ImageLoadingException(err.str());
+	}
+
+	return reader->GetOutput();
 }
 

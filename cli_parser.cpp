@@ -6,6 +6,7 @@
 
 #include <boost/regex.hpp>
 
+#include "Logger.h"
 
 class cli_offset {
 public :
@@ -38,10 +39,9 @@ void validate(boost::any& v, const std::vector<std::string>& values, cli_offset*
 	// int.
 	boost::smatch match;
 	if (boost::regex_match(s, match, r)) {
-		std::cout << match[0] << std::endl;
 		v = boost::any(cli_offset(boost::lexical_cast<unsigned int>(match[1]), boost::lexical_cast<unsigned int>(match[2]), boost::lexical_cast<unsigned int>(match[3])));
 	} else {
-		throw validation_error(validation_error::invalid_option_value);
+		throw invalid_option_value(s);
 	}
 }
 
@@ -58,6 +58,10 @@ CliParser::CliParser()
 
 int CliParser::parse_argv(int argc, char ** argv)
 {
+	log4cxx::LoggerPtr logger = Logger::getInstance();
+
+	LOG4CXX_INFO(logger, "Parsing command line options");
+
 	cli_offset _offset(0, 0, 0);
 
 	po::options_description desc("Command line parameters");
@@ -76,7 +80,14 @@ int CliParser::parse_argv(int argc, char ** argv)
 			;
 
 	po::variables_map vm;
-	po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+
+	try {
+		po::store(po::command_line_parser(argc, argv).options(desc).run(), vm);
+	} catch(po::error &err) {
+		LOG4CXX_FATAL(logger, err.what());
+		return -1;
+	}
+
 	po::notify(vm);
 
 	if (vm.count("help")) {
@@ -87,52 +98,62 @@ int CliParser::parse_argv(int argc, char ** argv)
 
 	if(vm.count("input-image"))
 	{
-		std::cout << "Image to process: " << this->input_image << std::endl;
 		boost::filesystem::path path(this->input_image);
 		if(!boost::filesystem::exists(path))
 		{
-			std::cerr << this->input_image << " does not exists" << std::endl;
+			LOG4CXX_FATAL(logger, "Cannot load input image: \"" << this->input_image << "\" does not exists");
 			return -1;
 		}
+
+		LOG4CXX_INFO(logger, "Input image: " << this->input_image);
 	} else {
-		std::cerr << "No input image provided." << std::endl;
+		LOG4CXX_FATAL(logger, "No input image provided");
 		return -1;
 	}
 
 	if(vm.count("class-image") && (this->class_images.size() >= 2))
 	{
-		std::cout << "Learning classes (" << this->class_images.size() << "): ";
-		copy(this->class_images.begin(), this->class_images.end() - 1, std::ostream_iterator< std::string >(std::cout, ", ")); 
-		std::cout << this->class_images.back() << std::endl;
+		LOG4CXX_INFO(logger, this->class_images.size() << " learning classes provided");
+		for(int i = 0; i < this->class_images.size(); ++i)
+		{
+			boost::filesystem::path path(this->input_image);
+			if(!boost::filesystem::exists(path))
+			{
+				LOG4CXX_FATAL(logger, "Cannot load class image: \"" << this->class_images[i] << "\" does not exists");
+				return -1;
+			}
+			
+			LOG4CXX_INFO(logger, "Class " << (i + 1) << ": " << this->class_images[i]);
+		}
 	} else {
-		std::cerr << "You should provide at least two learning classes." << std::endl;
+		LOG4CXX_FATAL(logger, "You should provide at least two learning classes");
 		return -1;
 	}
 
 	if(vm.count("export-dir"))
 	{
-		std::cout << "Export directory: " << this->export_dir << std::endl;
-
 		boost::filesystem::path path(this->export_dir);
 
 		if(boost::filesystem::exists(path)) {
 			if(boost::filesystem::is_directory(path)) {
 				if(!boost::filesystem::is_empty(path)) {
-					std::cerr << this->export_dir << " exists but is not empty" << std::endl;
+					LOG4CXX_FATAL(logger, "Export directory \"" << this->export_dir << "\" exists but is not empty");
 					return -1;
 				}
 			} else {
-				std::cerr << this->export_dir << " already exists as a file" << std::endl;
+				LOG4CXX_FATAL(logger, "Export directory \"" << this->export_dir << "\" already exists as a file");
 				return -1;
 			}
 		} else {
 			if(!boost::filesystem::create_directories(path)) {
-				std::cerr << this->export_dir << " cannot be created" << std::endl;
+				LOG4CXX_FATAL(logger, "Export directory \"" << this->export_dir << "\" cannot be created");
 				return -1;
 			}
 		}
+
+		LOG4CXX_INFO(logger, "Export directory: " << this->export_dir);
 	} else {
-		std::cerr << "No export directory provided." << std::endl;
+		LOG4CXX_FATAL(logger, "No export directory provided");
 		return -1;
 	}
 
@@ -140,44 +161,46 @@ int CliParser::parse_argv(int argc, char ** argv)
 	{
 		this->export_interval = 0;
 	}
-	std::cout << "Export interval during regularization: " << this->export_interval << std::endl;
+	LOG4CXX_INFO(logger, "Export interval during regularization: " << this->export_interval);
 
 	if(!vm.count("num-iter"))
 	{
 		this->num_iter = 0;
 	}
-	std::cout << "Number of iterations for regularization: " << this->num_iter << std::endl;
+	LOG4CXX_INFO(logger, "Number of iterations for regularization: " << this->num_iter);
 
 	if(!vm.count("lambda1"))
 	{
 		this->lambda1 = 1.0;
 	}
-	std::cout << "Lambda1 parameter for regularization: " << this->lambda1 << std::endl;
+	LOG4CXX_INFO(logger, "Lambda1 parameter for regularization: " << this->lambda1);
 
 	if(!vm.count("lambda2"))
 	{
 		this->lambda2 = 1.0;
 	}
-	std::cout << "Lambda2 parameter for regularization: " << this->lambda2 << std::endl;
+	LOG4CXX_INFO(logger, "Lambda2 parameter for regularization: " << this->lambda2);
 
 	if(!vm.count("num-gray"))
 	{
 		this->num_gray = 16;
 	}
-	std::cout << "Number of gray levels: " << this->num_gray << std::endl;
+	LOG4CXX_INFO(logger, "Number of gray levels: " << this->num_gray);
 
 	if(!vm.count("window-radius"))
 	{
 		this->window_radius = 5;
 	}
-	std::cout << "Radius of the window: " << this->window_radius << std::endl;
+	LOG4CXX_INFO(logger, "Radius of the window: " << this->window_radius);
 
 	if(vm.count("offset"))
 	{
-		std::cout << "Offset: " << _offset << std::endl;
+		std::ostringstream m;
+		m << _offset;
+		LOG4CXX_INFO(logger, "Offset: " << m.str());
 		this->offset = std::vector< unsigned int >(_offset.getOffset());
 	} else {
-		std::cerr << "No offset provided." << std::endl;
+		LOG4CXX_FATAL(logger, "No offset provided");
 		return -1;
 	}
 
