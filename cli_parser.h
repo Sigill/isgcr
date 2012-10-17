@@ -4,8 +4,6 @@
 #include <boost/program_options.hpp>
 #include <vector>
 
-namespace po = boost::program_options;
-
 class CliParser
 {
 public:

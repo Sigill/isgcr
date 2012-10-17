@@ -8,33 +8,38 @@
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 
-#include "Logger.h"
+#include "log4cxx/logger.h"
 
 typedef itk::ImageFileReader< ImageType > ImageReader;
 typedef itk::ImageSeriesReader< ImageType > ImageSeriesReader;
 
-
 ImageType::Pointer ImageLoader::load(const std::string filename)
 {
-	log4cxx::LoggerPtr logger = Logger::getInstance();
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	LOG4CXX_INFO(logger, "Loading \"" << filename << "\"");
+	LOG4CXX_INFO(logger, "Loading image \"" << filename << "\"");
 
 	try
 	{
 		boost::filesystem::path path(filename);
 
 		if(boost::filesystem::exists(path)) {
+			ImageType::Pointer img;
+
 			if(boost::filesystem::is_directory(path))
 			{
-				LOG4CXX_DEBUG(logger, "\"" << filename << "\"" << " is a folder");
+				LOG4CXX_DEBUG(logger, path << " is a folder");
 
-				return loadImageSerie(filename);
+				img = loadImageSerie(filename);
 			} else {
-				LOG4CXX_DEBUG(logger, "\"" << filename << "\"" << " is a file");
+				LOG4CXX_DEBUG(logger, path << " is a file");
 
-				return loadImage(filename);
+				img = loadImage(filename);
 			}
+
+			LOG4CXX_INFO(logger, "Image " << path << " loaded");
+
+			return img;
 		} else {
 			std::stringstream err;
 			err << "\"" << filename << "\" does not exists";
@@ -76,7 +81,7 @@ ImageType::Pointer ImageLoader::loadImageSerie(const std::string filename)
 
 	typename ImageSeriesReader::FileNamesContainer filenames;
 
-	log4cxx::LoggerPtr logger = Logger::getInstance();
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	try
 	{

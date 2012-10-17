@@ -23,44 +23,54 @@
 
 #include <itkBinaryThresholdImageFilter.h>
 
-#include "ConsolePluginProgress.h"
+#include "LoggerPluginProgress.h"
 
-#include "Logger.h"
+#include "log4cxx/logger.h"
+#include "log4cxx/consoleappender.h"
+#include "log4cxx/patternlayout.h"
+#include "log4cxx/basicconfigurator.h"
 
 #include "callgrind.h"
 
 using namespace tlp;
 using namespace std;
 
-#define LOG(MESSAGE) \
-	do {\
-		std::ostringstream m;\
-		m << MESSAGE << std::endl;\
-		pp.setComment(m.str());\
-	} while(0)
-
-#define LOG_BEGIN(MESSAGE) \
-	do {\
-		pp.setComment(MESSAGE);\
-	} while(0)
-
-#define LOG_END() \
-	do {\
-		std::ostringstream m;\
-		m << "Done (" << elapsed_time(last_timestamp, get_timestamp()) << "s)";\
-		last_timestamp = get_timestamp();\
-		pp.setComment(m.str());\
-	} while(0)
-
 int main(int argc, char **argv)
 {
-	ConsolePluginProgress pp;
-	log4cxx::LoggerPtr logger = Logger::getInstance();
+	log4cxx::BasicConfigurator::configure(
+			log4cxx::AppenderPtr(new log4cxx::ConsoleAppender(
+					log4cxx::LayoutPtr(new log4cxx::PatternLayout("\%-5p - [%c] - \%m\%n")),
+					log4cxx::ConsoleAppender::getSystemErr()
+					)
+				)
+			);
+
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	CliParser cli_parser;
 	int parse_result = cli_parser.parse_argv(argc, argv);
-	if(parse_result <= 0)
+	if(parse_result <= 0) {
 		exit(parse_result);
+	}
+
+	boost::filesystem::path path_export_dir(cli_parser.get_export_dir());
+
+	if(boost::filesystem::exists(path_export_dir)) {
+		if(boost::filesystem::is_directory(path_export_dir)) {
+			if(!boost::filesystem::is_empty(path_export_dir)) {
+				LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " exists but is not empty");
+				exit(-1);
+			}
+		} else {
+			LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " already exists as a file");
+			exit(-1);
+		}
+	} else {
+		if(!boost::filesystem::create_directories(path_export_dir)) {
+			LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " cannot be created");
+			exit(-1);
+		}
+	}
 
 	// Creation of the export folders for each class
 	for(int i = 0; i < cli_parser.get_class_images().size(); ++i)
@@ -68,53 +78,41 @@ int main(int argc, char **argv)
 		std::ostringstream export_dir;
 		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
-		boost::filesystem::path path_export_dir(export_dir.str());
-
-		if(boost::filesystem::exists(path_export_dir)) {
-			if(boost::filesystem::is_directory(path_export_dir)) {
-				if(!boost::filesystem::is_empty(path_export_dir)) {
-					LOG4CXX_INFO(logger, "Output dir (" << path_export_dir.string() << ") exists but is not empty");
-					LOG("Output dir (" << path_export_dir.string() << ") exists but is not empty");
-					return -1;
-				}
-			} else {
-				LOG("Output dir (" << path_export_dir.string() << ") already exists as a file");
-				return -1;
-			}
-		} else {
-			if(!boost::filesystem::create_directories(path_export_dir)) {
-				LOG("Output dir (" << path_export_dir.string() << ") cannot be created");
-				return -1;
-			}
+		boost::filesystem::path path_class_export_dir(export_dir.str());
+		if(!boost::filesystem::create_directories(path_class_export_dir)) {
+			LOG4CXX_FATAL(logger, "Output dir " << path_class_export_dir << " cannot be created");
+			exit(-1);
 		}
 	}
 
 	timestamp_t last_timestamp = get_timestamp();
-
-	LOG_BEGIN("Computing Haralick features");
+	LOG4CXX_INFO(logger, "Computing Haralick features");
 
 	NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), cli_parser.get_num_gray(), cli_parser.get_window_radius(), cli_parser.get_offset());
 
-	LOG_END();
+	LOG4CXX_INFO(logger, "Haralick features computed in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
-	LOG_BEGIN("Loading training classes");
+
+	last_timestamp = get_timestamp();
+	LOG4CXX_INFO(logger, "Loading training classes");
 
 	boost::shared_ptr< TrainingClassVector > training_classes;
 	try {
 		training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
 	} catch (LearningClassException & ex) {
-		LOG("Unable to load the training classes: " << ex.what());
+		LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 		exit(-1);
 	}
 
-	LOG_END();
+	LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
-	LOG_BEGIN("Generating training sets");
+	last_timestamp = get_timestamp();
+	LOG4CXX_INFO(logger, "Generating training sets");
 
 	boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
 
-	LOG_END();
+	LOG4CXX_INFO(logger, "Training sets generated in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 	/*
 	// To export the training set
@@ -126,16 +124,20 @@ int main(int argc, char **argv)
 	}
 	*/
 
-	LOG_BEGIN("Training neural networks");
+	last_timestamp = get_timestamp();
+	LOG4CXX_INFO(logger, "Training neural networks");
 
 	boost::shared_ptr< NeuralNetworkVector > networks = train_neural_networks(training_sets);
 
-	LOG_END();
+	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+
 
 	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/debug/install/");
 	tlp::loadPlugins(0);
 
-	LOG_BEGIN("Generating graph structure");
+
+	last_timestamp = get_timestamp();
+	LOG4CXX_INFO(logger, "Generating graph structure");
 
 	tlp::DataSet data;
 	data.set<int>("Width", haralickImage->GetLargestPossibleRegion().GetSize()[0]);
@@ -146,8 +148,6 @@ int main(int argc, char **argv)
 	data.set<double>("Spacing", 1.0);
 
 	tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
-
-	LOG_END();
 
 	tlp::BooleanProperty *everything = graph->getLocalProperty<tlp::BooleanProperty>("everything");
 	everything->setAllNodeValue(true);
@@ -183,7 +183,10 @@ int main(int argc, char **argv)
 		delete itNodes;
 	}
 
-	std::cout << "Haralick features copied" << std::endl;
+	LOG4CXX_INFO(logger, "Graph structure generated in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+
+
+	LOG4CXX_INFO(logger, "Classifying pixels with neural networks");
 
 	std::vector< tlp::DoubleProperty* > regularized_segmentations(networks->size()); 
 
@@ -205,21 +208,23 @@ int main(int argc, char **argv)
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			double* result = fann_run( net.get(), const_cast<fann_type *>( &(haralick->getNodeValue(u)[0]) ) );
+			double* result = fann_run( net.get(), const_cast<fann_type *>( &(haralick->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
 			features[0] = result[0];
 			f0->setNodeValue(u, features);
 		}
 		delete itNodes;
 
-		std::cout << "Data classification done for image #" << i << std::endl;
+		LOG4CXX_INFO(logger, "Data classification done for image #" << i);
 
-		std::cout << "Applying CV_Ta algorithm on image #" << i << std::endl;
 
 		{
 			std::ostringstream output_graph;
 			output_graph << cli_parser.get_export_dir() << "/graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
 			tlp::saveGraph(subgraph, output_graph.str());
 		}
+
+
+		LOG4CXX_INFO(logger, "Applying CV_Ta algorithm on image #" << i);
 
 		std::ostringstream export_dir;
 		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
@@ -235,16 +240,17 @@ int main(int argc, char **argv)
 		data4.set<PropertyInterface*>("Weight", weight);
 		data4.set<PropertyInterface*>("Roi", roi);
 
-		std::cout << "Applying the Cv_Ta algorithm on image #" << i << std::endl;
+		LoggerPluginProgress pp("main.cv_ta");
+
 		string error4;
-		if(!subgraph->applyAlgorithm("Cv_Ta", error4, &data4)) {
-			std::cerr << "Unable to apply the Cv_Ta algorithm: " << error4 << std::endl;
+		if(!subgraph->applyAlgorithm("Cv_Ta", error4, &data4, &pp)) {
+			LOG4CXX_FATAL(logger, "Unable to apply the Cv_Ta algorithm: " << error4);
 			return -1;
 		}
 
 		regularized_segmentations[i] = subgraph->getLocalProperty< DoubleProperty >("fn");
 
-		std::cout << "Regularization done for image #" << i << std::endl;
+		LOG4CXX_INFO(logger, "Regularization done for image #" << i);
 	}
 
 	tlp::saveGraph(graph, cli_parser.get_export_dir() + "/" + "graph.tlp");
