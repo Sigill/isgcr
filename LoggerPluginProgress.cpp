@@ -12,13 +12,13 @@ void LoggerPluginProgress::setComment(std::string comment)
 {
 	tlp::SimplePluginProgress::setComment(comment);
 
-	LOG4CXX_INFO(this->logger, comment);
+	this->comment = comment;
 }
 
 tlp::ProgressState LoggerPluginProgress::progress(int step, int max_step)
 {
 	std::ostringstream status;
-	status << (int)(100 * step / (float)max_step) << "%";
+	status << this->comment << ": " << (int)(100 * step / (float)max_step) << "%";
 
 	LOG4CXX_INFO(this->logger, status.str());
 
