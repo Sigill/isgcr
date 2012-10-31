@@ -293,9 +293,9 @@ int main(int argc, char **argv)
 		max_it = std::max_element(values.begin(), values.end());
 
 		if(*max_it < 0.9)
-			max_pos = networks->size();
+			max_pos = 0;
 		else
-			max_pos = std::distance(values.begin(), max_it);
+			max_pos = std::distance(values.begin(), max_it) + 1;
 
 		classification_image->SetPixel(index, max_pos);
 
@@ -311,10 +311,31 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	{
+		std::string final_class_export_dir = final_export_dir + "/classmap";
+		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
+		{
+			std::cerr << final_class_export_dir << " cannot be created" << std::endl;
+			return -1;
+		}
+
+		itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
+		final_class_export_dir = final_class_export_dir + "/%06d.bmp";
+		outputNames->SetSeriesFormat(final_class_export_dir.c_str());
+		outputNames->SetStartIndex(0);
+		outputNames->SetEndIndex(depth - 1);
+
+		typedef itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 > > WriterType;
+		WriterType::Pointer writer = WriterType::New();
+		writer->SetInput(classification_image);
+		writer->SetFileNames(outputNames->GetFileNames());
+		writer->Update();
+	}
+
 	for(int i = 0; i <= networks->size(); ++i)
 	{
 		std::ostringstream class_name;
-		if(i < networks->size())
+		if(i > 0)
 		{
 			class_name << std::setfill('0') << std::setw(6) << i;
 		} else {
