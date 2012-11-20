@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 		tlp::DoubleVectorProperty *haralick = graph->getLocalProperty<tlp::DoubleVectorProperty>("haralick_feature");
 
 		const double *haralick_features_tmp;
-		std::vector<double> haralick_features(8);
+		std::vector<double> haralick_features(haralickImage->GetNumberOfComponentsPerPixel());
 
 		while(itNodes->hasNext())
 		{
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
 			NormalizedHaralickImage::PixelType texture = haralickImage->GetPixel(haralickImage->ComputeIndex(u.id));
 
 			haralick_features_tmp = texture.GetDataPointer();
-			haralick_features.assign(haralick_features_tmp, haralick_features_tmp+8);
+			haralick_features.assign(haralick_features_tmp, haralick_features_tmp + haralickImage->GetNumberOfComponentsPerPixel());
 			haralick->setNodeValue(u, haralick_features);
 		}
 		delete itNodes;

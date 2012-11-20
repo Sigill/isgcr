@@ -1,7 +1,7 @@
 #include "common.h"
 
 #include "itkRescaleIntensityImageFilter.h"
-#include "itkNthElementImageAdaptor.h"
+#include "itkVectorImageToImageAdaptor.h"
 
 #include "haralick.h"
 
@@ -13,7 +13,7 @@ typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilter;
 typedef typename itk::Statistics::ScalarImageToHaralickTextureFeaturesImageFilter< ImageType, double > ScalarImageToHaralickTextureFeaturesImageFilter;
 typedef typename ScalarImageToHaralickTextureFeaturesImageFilter::OutputImageType HaralickImageType;
 
-typedef itk::NthElementImageAdaptor< HaralickImageType, double > HaralickImageToScalarImageAdaptorType;
+typedef itk::VectorImageToImageAdaptor< typename HaralickImageType::PixelType::ValueType, HaralickImageType::ImageDimension > HaralickImageToScalarImageAdaptorType;
 typedef itk::RescaleIntensityImageFilter< HaralickImageToScalarImageAdaptorType, ScalarHaralickImageType > ScalarHaralickImageRescaleFilter;
 
 NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, const unsigned int _posterizationLevel, const unsigned int _windowRadius, std::vector< unsigned int > _offset)
@@ -54,7 +54,7 @@ NormalizedHaralickImage::Pointer load_texture_image(const std::string filename, 
     for(int i = 0; i < 8; ++i)
     {
       HaralickImageToScalarImageAdaptorType::Pointer adaptor = HaralickImageToScalarImageAdaptorType::New();
-      adaptor->SelectNthElement(i);
+      adaptor->SetExtractComponentIndex(i);
       adaptor->SetImage(haralickImageComputer->GetOutput());
 
       ScalarHaralickImageRescaleFilter::Pointer rescaler = ScalarHaralickImageRescaleFilter::New();
