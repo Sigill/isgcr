@@ -17,7 +17,6 @@
 
 #include <boost/filesystem.hpp>
 
-#include <itkImageFileReader.h>
 #include <itkImageSeriesWriter.h>
 #include <itkNumericSeriesFileNames.h>
 
@@ -86,7 +85,7 @@ int main(int argc, char **argv)
 	}
 
 	timestamp_t last_timestamp = get_timestamp();
-	LOG4CXX_INFO(logger, "Computing Haralick features");
+	LOG4CXX_INFO(logger, "Loading features image");
 
 	typename itk::ImageFileReader< FeaturesImage >::Pointer featuresImageReader = itk::ImageFileReader< FeaturesImage >::New();
 	featuresImageReader->SetFileName(cli_parser.get_input_image());
@@ -102,7 +101,7 @@ int main(int argc, char **argv)
 
 	FeaturesImage::Pointer featuresImage = featuresImageReader->GetOutput();
 
-	LOG4CXX_INFO(logger, "Haralick features computed in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+	LOG4CXX_INFO(logger, "Features image loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
 	last_timestamp = get_timestamp();
@@ -178,7 +177,7 @@ int main(int argc, char **argv)
 		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
 
-		tlp::DoubleVectorProperty *haralick = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
+		tlp::DoubleVectorProperty *features_property = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
 
 		const FeaturesImage::PixelType::ValueType *features_tmp;
 		std::vector<double> features(featuresImage->GetNumberOfComponentsPerPixel());
@@ -190,7 +189,7 @@ int main(int argc, char **argv)
 
 			features_tmp = texture.GetDataPointer();
 			features.assign(features_tmp, features_tmp + featuresImage->GetNumberOfComponentsPerPixel());
-			haralick->setNodeValue(u, features);
+			features_property->setNodeValue(u, features);
 		}
 		delete itNodes;
 	}
@@ -214,13 +213,13 @@ int main(int argc, char **argv)
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
 		tlp::DoubleVectorProperty *f0 = subgraph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
-		tlp::DoubleVectorProperty *haralick = subgraph->getProperty<tlp::DoubleVectorProperty>("features");
+		tlp::DoubleVectorProperty *features_property = subgraph->getProperty<tlp::DoubleVectorProperty>("features");
 		std::vector<double> features(1);
 
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			double* result = fann_run( net.get(), const_cast<fann_type *>( &(haralick->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
+			double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
 			features[0] = result[0];
 			f0->setNodeValue(u, features);
 		}
