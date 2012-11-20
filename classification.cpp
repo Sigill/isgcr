@@ -8,7 +8,7 @@
 
 typedef itk::ImageRegionConstIteratorWithIndex< ImageType > ConstIterator;
 
-boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, NormalizedHaralickImage::Pointer haralickImage) throw(LearningClassException)
+boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, FeaturesImage::Pointer featuresImage) throw(LearningClassException)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
@@ -25,10 +25,10 @@ boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::stri
 			throw LearningClassException(ex.what());
 		} 
 
-		if(image->GetLargestPossibleRegion().GetSize() != haralickImage->GetLargestPossibleRegion().GetSize())
+		if(image->GetLargestPossibleRegion().GetSize() != featuresImage->GetLargestPossibleRegion().GetSize())
 		{
 			std::stringstream err;
-			err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << ") differs from the dimensions of the image (" << haralickImage->GetLargestPossibleRegion().GetSize() << ")";
+			err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << ") differs from the dimensions of the image (" << featuresImage->GetLargestPossibleRegion().GetSize() << ")";
 			throw LearningClassException(err.str());
 		}
 
@@ -39,7 +39,7 @@ boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::stri
 		{
 			if(255 == learningClassIterator.Get())
 			{
-				current_class->push_back(haralickImage->GetPixel(learningClassIterator.GetIndex()));
+				current_class->push_back(featuresImage->GetPixel(learningClassIterator.GetIndex()));
 			}
 
 			++learningClassIterator;

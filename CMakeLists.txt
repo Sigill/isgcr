@@ -9,9 +9,6 @@ include(${ITK_USE_FILE})
 find_package(FANN REQUIRED)
 INCLUDE_DIRECTORIES(${FANN_INCLUDE_DIRS})
 
-find_package(ITK_Haralick REQUIRED)
-include_directories(${ITK_Haralick_INCLUDE_DIRS})
-
 set(Boost_USE_STATIC_LIBS        ON)
 set(Boost_USE_MULTITHREADED      ON)
 set(Boost_USE_STATIC_RUNTIME    ON)
@@ -34,7 +31,7 @@ endif()
 find_package(TULIP3 REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
 
-add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp haralick.cpp image_loader.cpp classification.cpp LoggerPluginProgress.cpp)
+add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp image_loader.cpp classification.cpp LoggerPluginProgress.cpp)
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
 target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY} ${LOG4CXX_LIBRARIES})
 

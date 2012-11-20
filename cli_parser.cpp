@@ -10,50 +10,6 @@
 
 namespace po = boost::program_options;
 
-class cli_offset {
-public :
-	cli_offset(unsigned int o1, unsigned int o2, unsigned int o3) : m_offset(3)
-	{
-		m_offset[0] = o1;
-		m_offset[1] = o2;
-		m_offset[2] = o3;
-	}
-
-	std::vector< unsigned int > getOffset() { return m_offset; }
-
-private:
-	std::vector< unsigned int > m_offset;
-};
-
-void validate(boost::any& v, const std::vector<std::string>& values, cli_offset* target_type, int)
-{
-	static boost::regex r("(\\d+),(\\d+),(\\d+)");
-
-	using namespace boost::program_options;
-
-	// Make sure no previous assignment to 'v' was made.
-	validators::check_first_occurrence(v);
-	// Extract the first string from 'values'. If there is more than
-	// one string, it's an error, and exception will be thrown.
-	const std::string& s = validators::get_single_string(values);
-
-	// Do regex match and convert the interesting part to int.
-	boost::smatch match;
-	if (boost::regex_match(s, match, r)) {
-		v = boost::any(cli_offset(boost::lexical_cast<unsigned int>(match[1]), boost::lexical_cast<unsigned int>(match[2]), boost::lexical_cast<unsigned int>(match[3])));
-	} else {
-		throw invalid_option_value(s);
-	}
-}
-
-std::ostream &operator<<(std::ostream &out, cli_offset& t){
-	std::vector<unsigned int> vec = t.getOffset();
-
-	std::copy(vec.begin(), vec.end(), std::ostream_iterator<unsigned int>(out, ", ") );
-
-	return out;
-}
-
 CliParser::CliParser()
 {}
 
@@ -62,8 +18,6 @@ int CliParser::parse_argv(int argc, char ** argv)
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	LOG4CXX_INFO(logger, "Parsing command line options");
-
-	cli_offset _offset(0, 0, 0);
 
 	po::options_description desc("Command line parameters");
 	desc.add_options()
@@ -90,15 +44,6 @@ int CliParser::parse_argv(int argc, char ** argv)
 		("lambda2",
 			po::value< double >(&(this->lambda2))->default_value(1.0),
 			"Lambda 2 parameter for regularization")
-		("num-gray",
-			po::value< unsigned int >(&(this->num_gray))->default_value(16),
-			"Number of gray levels used to compute the texture characteristics")
-		( "window-radius",
-			 po::value< unsigned int >(&(this->window_radius))->default_value(5),
-			 "Radius of the window used to compute the texture characteristics")
-		("offset",
-			po::value< cli_offset >(&_offset)->required(),
-			"Offset used to compute the texture characteristics")
 		;
 
 	po::variables_map vm;
@@ -147,14 +92,6 @@ int CliParser::parse_argv(int argc, char ** argv)
 	LOG4CXX_INFO(logger, "Number of iterations for regularization: " << this->num_iter);
 	LOG4CXX_INFO(logger, "Lambda2 parameter for regularization: " << this->lambda2);
 	LOG4CXX_INFO(logger, "Lambda1 parameter for regularization: " << this->lambda1);
-	LOG4CXX_INFO(logger, "Number of gray levels: " << this->num_gray);
-	LOG4CXX_INFO(logger, "Radius of the window: " << this->window_radius);
-	{
-		std::ostringstream m;
-		m << _offset;
-		LOG4CXX_INFO(logger, "Offset: " << m.str());
-		this->offset = std::vector< unsigned int >(_offset.getOffset());
-	}
 
 	return 1;
 }
@@ -190,16 +127,4 @@ const double CliParser::get_lambda1() const {
 
 const double CliParser::get_lambda2() const {
 	return this->lambda2;
-}
-
-const unsigned int CliParser::get_num_gray() const {
-	return this->num_gray;
-}
-
-const unsigned int CliParser::get_window_radius() const {
-	return this->window_radius;
-}
-
-const std::vector< unsigned int > CliParser::get_offset() const {
-	return this->offset;
 }

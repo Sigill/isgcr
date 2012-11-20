@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 #include <algorithm>
 
@@ -8,8 +9,6 @@
 #include "classification.h"
 #include "image_loader.h"
 
-#include "haralick.h"
-
 #include "doublefann.h"
 
 #include <tulip/Graph.h>
@@ -18,6 +17,7 @@
 
 #include <boost/filesystem.hpp>
 
+#include <itkImageFileReader.h>
 #include <itkImageSeriesWriter.h>
 #include <itkNumericSeriesFileNames.h>
 
@@ -88,7 +88,19 @@ int main(int argc, char **argv)
 	timestamp_t last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Computing Haralick features");
 
-	NormalizedHaralickImage::Pointer haralickImage = load_texture_image(cli_parser.get_input_image(), cli_parser.get_num_gray(), cli_parser.get_window_radius(), cli_parser.get_offset());
+	typename itk::ImageFileReader< FeaturesImage >::Pointer featuresImageReader = itk::ImageFileReader< FeaturesImage >::New();
+	featuresImageReader->SetFileName(cli_parser.get_input_image());
+
+	try {
+		featuresImageReader->Update();
+	}
+	catch( itk::ExceptionObject &ex )
+	{
+		LOG4CXX_FATAL(logger, "ITK is unable to load the image \"" << cli_parser.get_input_image() << "\" (" << ex.what() << ")");
+		exit(-1);
+	}
+
+	FeaturesImage::Pointer featuresImage = featuresImageReader->GetOutput();
 
 	LOG4CXX_INFO(logger, "Haralick features computed in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
@@ -98,7 +110,7 @@ int main(int argc, char **argv)
 
 	boost::shared_ptr< TrainingClassVector > training_classes;
 	try {
-		training_classes = load_classes(cli_parser.get_class_images(), haralickImage);
+		training_classes = load_classes(cli_parser.get_class_images(), featuresImage);
 	} catch (LearningClassException & ex) {
 		LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 		exit(-1);
@@ -140,9 +152,9 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Generating graph structure");
 
 	tlp::DataSet data;
-	data.set<int>("Width", haralickImage->GetLargestPossibleRegion().GetSize()[0]);
-	data.set<int>("Height", haralickImage->GetLargestPossibleRegion().GetSize()[1]);
-	data.set<int>("Depth", haralickImage->GetLargestPossibleRegion().GetSize()[2]);
+	data.set<int>("Width", featuresImage->GetLargestPossibleRegion().GetSize()[0]);
+	data.set<int>("Height", featuresImage->GetLargestPossibleRegion().GetSize()[1]);
+	data.set<int>("Depth", featuresImage->GetLargestPossibleRegion().GetSize()[2]);
 	data.set<tlp::StringCollection>("Connectivity", tlp::StringCollection("4"));
 	data.set<bool>("Positionning", true);
 	data.set<double>("Spacing", 1.0);
@@ -166,19 +178,19 @@ int main(int argc, char **argv)
 		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
 
-		tlp::DoubleVectorProperty *haralick = graph->getLocalProperty<tlp::DoubleVectorProperty>("haralick_feature");
+		tlp::DoubleVectorProperty *haralick = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
 
-		const double *haralick_features_tmp;
-		std::vector<double> haralick_features(haralickImage->GetNumberOfComponentsPerPixel());
+		const FeaturesImage::PixelType::ValueType *features_tmp;
+		std::vector<double> features(featuresImage->GetNumberOfComponentsPerPixel());
 
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			NormalizedHaralickImage::PixelType texture = haralickImage->GetPixel(haralickImage->ComputeIndex(u.id));
+			FeaturesImage::PixelType texture = featuresImage->GetPixel(featuresImage->ComputeIndex(u.id));
 
-			haralick_features_tmp = texture.GetDataPointer();
-			haralick_features.assign(haralick_features_tmp, haralick_features_tmp + haralickImage->GetNumberOfComponentsPerPixel());
-			haralick->setNodeValue(u, haralick_features);
+			features_tmp = texture.GetDataPointer();
+			features.assign(features_tmp, features_tmp + featuresImage->GetNumberOfComponentsPerPixel());
+			haralick->setNodeValue(u, features);
 		}
 		delete itNodes;
 	}
@@ -202,7 +214,7 @@ int main(int argc, char **argv)
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
 		tlp::DoubleVectorProperty *f0 = subgraph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
-		tlp::DoubleVectorProperty *haralick = subgraph->getProperty<tlp::DoubleVectorProperty>("haralick_feature");
+		tlp::DoubleVectorProperty *haralick = subgraph->getProperty<tlp::DoubleVectorProperty>("features");
 		std::vector<double> features(1);
 
 		while(itNodes->hasNext())
@@ -256,7 +268,7 @@ int main(int argc, char **argv)
 	tlp::saveGraph(graph, cli_parser.get_export_dir() + "/" + "graph.tlp");
 
 	ImageType::Pointer classification_image = ImageType::New();
-	classification_image->SetRegions(haralickImage->GetLargestPossibleRegion());
+	classification_image->SetRegions(featuresImage->GetLargestPossibleRegion());
 	classification_image->Allocate();
 	ImageType::IndexType index;
 
