@@ -8,7 +8,7 @@
 
 typedef itk::ImageRegionConstIteratorWithIndex< ImageType > ConstIterator;
 
-boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, FeaturesImage::Pointer featuresImage) throw(LearningClassException)
+boost::shared_ptr<TrainingClassVector> load_classes(const std::vector< std::string > filenames, typename FeaturesImage::Pointer featuresImage)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
@@ -61,13 +61,13 @@ boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<T
 
 	unsigned int total = 0;
 	{
-		unsigned int previous_total;
+		unsigned int size;
 		for(int i = 0; i < number_of_classes; ++i)
 		{
-			previous_total = total;
-			total += raw_learning_classes->operator[](i)->size();
+			size = raw_learning_classes->operator[](i)->size();
+			total += size;
 
-			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << (total - previous_total) << " elements");
+			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << size << " elements");
 		}
 	}
 

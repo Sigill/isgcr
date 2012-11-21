@@ -25,7 +25,7 @@ typedef std::vector< boost::shared_ptr< TrainingSet > > TrainingSetVector;
 typedef struct fann NeuralNetwork;
 typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
-boost::shared_ptr<TrainingClassVector> load_classes( const std::vector< std::string > filenames, FeaturesImage::Pointer featuresImage ) throw(LearningClassException);
+boost::shared_ptr<TrainingClassVector> load_classes( const std::vector< std::string > filenames, typename FeaturesImage::Pointer featuresImage );
 
 boost::shared_ptr<TrainingSetVector> generate_training_sets( boost::shared_ptr<TrainingClassVector> raw_learning_classes );
 
