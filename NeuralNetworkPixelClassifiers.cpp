@@ -126,17 +126,17 @@ NeuralNetworkPixelClassifiers
 
 void
 NeuralNetworkPixelClassifiers
-::train_neural_networks()
+::create_and_train_neural_networks( const std::vector< int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	for(int i = 0; i < m_NumberOfClasses; ++i)
 	{
-		NeuralNetwork* ann = fann_create_standard(3, m_NumberOfComponentsPerPixel, 3, 1);
+		NeuralNetwork* ann = fann_create_standard_array(hidden_layers.size(), (const unsigned int*)(hidden_layers.data()));
 		fann_set_activation_function_hidden(ann, FANN_SIGMOID);
 		fann_set_activation_function_output(ann, FANN_SIGMOID);
 		fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);
-		fann_set_learning_rate(ann, 0.1);
+		fann_set_learning_rate(ann, learning_rate);
 
 		m_NeuralNetworks.push_back( boost::shared_ptr< NeuralNetwork >( ann, fann_destroy ) );
 	}
@@ -151,7 +151,7 @@ NeuralNetworkPixelClassifiers
 
 		fann_shuffle_train_data(current_training_set.get());
 
-		fann_train_on_data(current_neural_network.get(), current_training_set.get(), 1000, 0, 0.0001);
+		fann_train_on_data(current_neural_network.get(), current_training_set.get(), max_epoch, 0, mse_target);
 
 		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network.get()));
 	}

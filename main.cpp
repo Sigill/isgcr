@@ -124,12 +124,16 @@ int main(int argc, char **argv)
 	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Training neural networks");
 
-	pixelClassifiers.train_neural_networks();
+	std::vector< int > hidden_layers = cli_parser.get_ann_hidden_layers();
+	hidden_layers.insert(hidden_layers.begin(), featuresImage->GetNumberOfComponentsPerPixel()); // First layer: number of features
+	hidden_layers.push_back(1); // Last layer: one output
+
+	pixelClassifiers.create_and_train_neural_networks(hidden_layers, cli_parser.get_ann_learning_rate(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
 
 	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
-	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/debug/install/");
+	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
 	tlp::loadPlugins(0);
 
 

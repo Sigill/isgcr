@@ -2,13 +2,43 @@
 
 #include <boost/filesystem.hpp>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
-#include <boost/regex.hpp>
 
 #include "log4cxx/logger.h"
 
 namespace po = boost::program_options;
+
+void validate(boost::any& v, const std::vector<std::string>& values, strictly_positive_integer*, int)
+{
+	static boost::regex r("([1-9]\\d{0,5})");
+
+	po::validators::check_first_occurrence(v);
+	const std::string& s = po::validators::get_single_string(values);
+
+	boost::smatch match;
+	if (boost::regex_match(s, match, r)) {
+		v = boost::any(strictly_positive_integer(boost::lexical_cast<unsigned int>(match[1])));
+	} else {
+		throw po::invalid_option_value(s);
+	}
+}
+
+std::ostream &operator<<(std::ostream &out, strictly_positive_integer& t)
+{
+	out << t.value;
+
+	return out;
+}
+
+std::ostream &operator<<(std::ostream &out, std::vector< int >& t)
+{
+	std::stringstream str;
+	std::copy(t.begin(), t.end(), std::ostream_iterator<int>(out, ", ") );
+
+	return out;
+}
 
 CliParser::CliParser()
 {}
@@ -33,10 +63,10 @@ int CliParser::parse_argv(int argc, char ** argv)
 			po::value< std::string >(&(this->export_dir))->required(),
 			"Export directory")
 		("export-interval,e",
-			po::value< unsigned int >(&(this->export_interval))->default_value(0),
+			po::value< int >(&(this->export_interval))->default_value(0),
 			"Export interval during regularization")
 		("num-iter,n",
-			po::value< unsigned int >(&(this->num_iter))->default_value(0),
+			po::value< int >(&(this->num_iter))->default_value(0),
 			"Number of iterations for the regularization")
 		("lambda1",
 			po::value< double >(&(this->lambda1))->default_value(1.0),
@@ -44,6 +74,19 @@ int CliParser::parse_argv(int argc, char ** argv)
 		("lambda2",
 			po::value< double >(&(this->lambda2))->default_value(1.0),
 			"Lambda 2 parameter for regularization")
+		("ann-hidden-layer",
+			po::value< std::vector< int > >(&(this->ann_hidden_layers))->multitoken(),
+			"Number of neurons per hidden layer (default: one layer of 3 neurons)")
+		("ann-learning-rate",
+			po::value< float >(&(this->ann_learning_rate))->default_value(0.1),
+			"Learning rate of the neural networks")
+		("ann-max-epoch",
+			po::value< strictly_positive_integer >(&(this->ann_max_epoch)),
+			//po::value< strictly_positive_integer >(&(this->ann_max_epoch))->default_value(1000),
+			"Maximum number of learning iterations for the neural networks")
+		("ann-mse-target",
+			po::value< float >(&(this->ann_learning_rate))->default_value(0.0001),
+			"Mean squared error targeted by the neural networks learning algorithm")
 		;
 
 	po::variables_map vm;
@@ -87,11 +130,26 @@ int CliParser::parse_argv(int argc, char ** argv)
 		}
 	}
 
-	LOG4CXX_INFO(logger, "Export directory: " << this->export_dir);
-	LOG4CXX_INFO(logger, "Export interval during regularization: " << this->export_interval);
-	LOG4CXX_INFO(logger, "Number of iterations for regularization: " << this->num_iter);
-	LOG4CXX_INFO(logger, "Lambda2 parameter for regularization: " << this->lambda2);
-	LOG4CXX_INFO(logger, "Lambda1 parameter for regularization: " << this->lambda1);
+	if(this->ann_hidden_layers.empty()) {
+		this->ann_hidden_layers.push_back(3);
+	}
+
+	LOG4CXX_INFO(logger, "Main parameters:");
+	LOG4CXX_INFO(logger, "\tExport directory: " << this->export_dir);
+	LOG4CXX_INFO(logger, "Regularization parameters:");
+	LOG4CXX_INFO(logger, "\tExport interval: " << this->export_interval);
+	LOG4CXX_INFO(logger, "\tNumber of iterations: " << this->num_iter);
+	LOG4CXX_INFO(logger, "\tLambda2: " << this->lambda2);
+	LOG4CXX_INFO(logger, "\tLambda1: " << this->lambda1);
+	LOG4CXX_INFO(logger, "Neural networks parameters:");
+	{
+		std::stringstream m;
+		m << this->ann_hidden_layers;
+		LOG4CXX_INFO(logger, "\tNumber of hidden neurons per layer: " << m.str());
+	}
+	LOG4CXX_INFO(logger, "\tLearning rate: " << this->ann_learning_rate);
+	LOG4CXX_INFO(logger, "\tMaximum number of iterations: " << this->ann_max_epoch.value);
+	LOG4CXX_INFO(logger, "\tMean squared error targeted: " << this->ann_mse_target);
 
 	return 1;
 }
@@ -111,12 +169,12 @@ const std::string CliParser::get_export_dir() const
 	return this->export_dir;
 }
 
-const unsigned int CliParser::get_export_interval() const
+const int CliParser::get_export_interval() const
 {
 	return this->export_interval;
 }
 
-const unsigned int CliParser::get_num_iter() const
+const int CliParser::get_num_iter() const
 {
 	return this->num_iter;
 }
@@ -128,3 +186,20 @@ const double CliParser::get_lambda1() const {
 const double CliParser::get_lambda2() const {
 	return this->lambda2;
 }
+
+const std::vector< int > CliParser::get_ann_hidden_layers() const {
+	return this->ann_hidden_layers;
+}
+
+const float CliParser::get_ann_learning_rate() const {
+	return this->ann_learning_rate;
+}
+
+const unsigned int CliParser::get_ann_max_epoch() const {
+	return this->ann_max_epoch.value;
+}
+
+const float CliParser::get_ann_mse_target() const {
+	return this->ann_mse_target;
+}
+

@@ -21,7 +21,9 @@ public:
 	typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
 	void load_training_sets(const std::vector< std::string > filenames, typename FeaturesImage::Pointer featuresImage);
-	void train_neural_networks();
+
+	void create_and_train_neural_networks( const std::vector< int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target );
+	
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 
 private:
