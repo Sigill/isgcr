@@ -31,7 +31,7 @@ endif()
 find_package(TULIP3 REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
 
-add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp image_loader.cpp classification.cpp LoggerPluginProgress.cpp)
+add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp image_loader.cpp NeuralNetworkPixelClassifiers.cpp LoggerPluginProgress.cpp)
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
 target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY} ${LOG4CXX_LIBRARIES})
 

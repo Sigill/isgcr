@@ -6,8 +6,8 @@
 #include "common.h"
 #include "time_utils.h"
 #include "cli_parser.h"
-#include "classification.h"
 #include "image_loader.h"
+#include "NeuralNetworkPixelClassifiers.h"
 
 #include "doublefann.h"
 
@@ -71,8 +71,10 @@ int main(int argc, char **argv)
 		}
 	}
 
+	const unsigned int number_of_classes = cli_parser.get_class_images().size();
+
 	// Creation of the export folders for each class
-	for(int i = 0; i < cli_parser.get_class_images().size(); ++i)
+	for(int i = 0; i < number_of_classes; ++i)
 	{
 		std::ostringstream export_dir;
 		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
@@ -104,12 +106,13 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Features image loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
+	NeuralNetworkPixelClassifiers pixelClassifiers;
+
 	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Loading training classes");
 
-	boost::shared_ptr< TrainingClassVector > training_classes;
 	try {
-		training_classes = load_classes(cli_parser.get_class_images(), featuresImage);
+		pixelClassifiers.load_training_sets(cli_parser.get_class_images(), featuresImage);
 	} catch (LearningClassException & ex) {
 		LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 		exit(-1);
@@ -119,26 +122,9 @@ int main(int argc, char **argv)
 
 
 	last_timestamp = get_timestamp();
-	LOG4CXX_INFO(logger, "Generating training sets");
-
-	boost::shared_ptr< TrainingSetVector > training_sets = generate_training_sets(training_classes);
-
-	LOG4CXX_INFO(logger, "Training sets generated in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
-	/*
-	// To export the training set
-	for(int i = 0; i < training_classes->size(); ++i)
-	{
-		std::ostringstream output_file;
-		output_file << cli_parser.get_export_dir() << "/training_set_" << std::setfill('0') << std::setw(6) << i << ".data";
-		fann_save_train(training_sets->operator[](i).get(), output_file.str().c_str());
-	}
-	*/
-
-	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Training neural networks");
 
-	boost::shared_ptr< NeuralNetworkVector > networks = train_neural_networks(training_sets);
+	pixelClassifiers.train_neural_networks();
 
 	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
@@ -199,16 +185,16 @@ int main(int argc, char **argv)
 
 	LOG4CXX_INFO(logger, "Classifying pixels with neural networks");
 
-	std::vector< tlp::DoubleProperty* > regularized_segmentations(networks->size()); 
+	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classes); 
 
-	for(unsigned int i = 0; i < networks->size(); ++i)
+	for(unsigned int i = 0; i < number_of_classes; ++i)
 	{
 		std::ostringstream graph_name;
 		graph_name << std::setfill('0') << std::setw(6) << i;
 
 		tlp::Graph* subgraph = graph->addSubGraph(everything, 0, graph_name.str());
 
-		boost::shared_ptr< NeuralNetwork > net = networks->operator[](i);
+		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
 
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
@@ -280,7 +266,7 @@ int main(int argc, char **argv)
 
 	tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 	tlp::node u;
-	std::vector< double > values(networks->size());
+	std::vector< double > values(number_of_classes);
 
 	std::vector< double >::iterator max_it;
 	unsigned int max_pos;
@@ -296,7 +282,7 @@ int main(int argc, char **argv)
 		id /= height;
 		index[2] = id;
 
-		for(unsigned int i = 0; i < networks->size(); ++i)
+		for(unsigned int i = 0; i < number_of_classes; ++i)
 		{
 			values[i] = regularized_segmentations[i]->getNodeValue(u);
 		}
@@ -343,7 +329,7 @@ int main(int argc, char **argv)
 		writer->Update();
 	}
 
-	for(int i = 0; i <= networks->size(); ++i)
+	for(int i = 0; i <= number_of_classes; ++i)
 	{
 		std::ostringstream class_name;
 		if(i > 0)
