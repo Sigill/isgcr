@@ -126,13 +126,13 @@ NeuralNetworkPixelClassifiers
 
 void
 NeuralNetworkPixelClassifiers
-::create_and_train_neural_networks( const std::vector< int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target )
+::create_and_train_neural_networks( const std::vector< unsigned int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	for(int i = 0; i < m_NumberOfClasses; ++i)
 	{
-		NeuralNetwork* ann = fann_create_standard_array(hidden_layers.size(), (const unsigned int*)(hidden_layers.data()));
+		NeuralNetwork* ann = fann_create_standard_array(hidden_layers.size(), hidden_layers.data());
 		fann_set_activation_function_hidden(ann, FANN_SIGMOID);
 		fann_set_activation_function_output(ann, FANN_SIGMOID);
 		fann_set_train_stop_function(ann, FANN_STOPFUNC_MSE);

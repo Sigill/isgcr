@@ -12,7 +12,7 @@
 
 namespace po = boost::program_options;
 
-void validate(boost::any& v, const std::vector<std::string>& values, positive_integer*, int)
+void validate(boost::any& v, const std::vector<std::string>& values, PositiveInteger*, int)
 {
 	po::validators::check_first_occurrence(v);
 	const std::string& s = po::validators::get_single_string(values);
@@ -20,13 +20,13 @@ void validate(boost::any& v, const std::vector<std::string>& values, positive_in
 	unsigned int value;
 	if( ParseUtils::ParseUInt(value, s.data(), 10) && value > 0 )
 	{
-		v = boost::any(positive_integer(value));
+		v = boost::any(PositiveInteger(value));
 	} else {
 		throw po::invalid_option_value(s);
 	}
 }
 
-void validate(boost::any& v, const std::vector<std::string>& values, strictly_positive_integer*, int)
+void validate(boost::any& v, const std::vector<std::string>& values, StrictlyPositiveInteger*, int)
 {
 	po::validators::check_first_occurrence(v);
 	const std::string& s = po::validators::get_single_string(values);
@@ -34,28 +34,57 @@ void validate(boost::any& v, const std::vector<std::string>& values, strictly_po
 	unsigned int value;
 	if( ParseUtils::ParseUInt(value, s.data(), 10) && value > 0 )
 	{
-		v = boost::any(strictly_positive_integer(value));
+		v = boost::any(StrictlyPositiveInteger(value));
 	} else {
 		throw po::invalid_option_value(s);
 	}
 }
 
-std::ostream& operator<< (std::ostream& s, const strictly_positive_integer& v)
+void validate(boost::any& v, const std::vector<std::string>& values, Float*, int)
 {
-	return s << v.value;
+	po::validators::check_first_occurrence(v);
+	const std::string& s = po::validators::get_single_string(values);
+
+	float value;
+	if( ParseUtils::ParseFloat(value, s.data()) )
+	{
+		v = boost::any(Float(value));
+	} else {
+		throw po::invalid_option_value(s);
+	}
 }
 
-std::ostream& operator<< (std::ostream& s, const positive_integer& v)
+void validate(boost::any& v, const std::vector<std::string>& values, Double*, int)
 {
-	return s << v.value;
+	po::validators::check_first_occurrence(v);
+	const std::string& s = po::validators::get_single_string(values);
+
+	double value;
+	if( ParseUtils::ParseDouble(value, s.data()) )
+	{
+		v = boost::any(Double(value));
+	} else {
+		throw po::invalid_option_value(s);
+	}
 }
 
-std::ostream &operator<<(std::ostream &out, std::vector< int >& t)
+template< typename TElemType >
+std::ostream &operator<<(std::ostream &s, const std::vector< TElemType >& v)
 {
-	std::stringstream str;
-	std::copy(t.begin(), t.end(), std::ostream_iterator<int>(out, ", ") );
+	std::stringstream ss;
+	if( !v.empty() )
+	{
 
-	return out;
+		typename std::vector< TElemType >::const_iterator it = v.begin(), begin = v.begin(), end = v.end();
+		for( ; it < end; ++it )
+		{
+			if(it != begin)
+				ss << " ";
+			ss << *it;
+		}
+	}
+
+	return s << ss.str();
 }
 
 CliParser::CliParser()
@@ -66,6 +95,8 @@ int CliParser::parse_argv(int argc, char ** argv)
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	LOG4CXX_INFO(logger, "Parsing command line options");
+
+	typedef std::vector< StrictlyPositiveInteger > HiddenLayerVector;
 
 	po::options_description desc("Command line parameters");
 	desc.add_options()
@@ -81,28 +112,28 @@ int CliParser::parse_argv(int argc, char ** argv)
 			po::value< std::string >(&(this->export_dir))->required(),
 			"Export directory")
 		("export-interval,e",
-			po::value< int >(&(this->export_interval))->default_value(0),
+			po::value< PositiveInteger >(&(this->export_interval))->default_value(0),
 			"Export interval during regularization")
 		("num-iter,n",
-			po::value< int >(&(this->num_iter))->default_value(0),
+			po::value< PositiveInteger >(&(this->num_iter))->default_value(0),
 			"Number of iterations for the regularization")
 		("lambda1",
-			po::value< double >(&(this->lambda1))->default_value(1.0),
+			po::value< Double >(&(this->lambda1))->default_value(1.0),
 			"Lambda 1 parameter for regularization")
 		("lambda2",
-			po::value< double >(&(this->lambda2))->default_value(1.0),
+			po::value< Double >(&(this->lambda2))->default_value(1.0),
 			"Lambda 2 parameter for regularization")
 		("ann-hidden-layer",
-			po::value< std::vector< int > >(&(this->ann_hidden_layers))->multitoken(),
+			po::value< HiddenLayerVector >()->multitoken()->default_value(HiddenLayerVector(1, 3)),
 			"Number of neurons per hidden layer (default: one layer of 3 neurons)")
 		("ann-learning-rate",
-			po::value< float >(&(this->ann_learning_rate))->default_value(0.1),
+			po::value< Float >(&(this->ann_learning_rate))->default_value(0.1),
 			"Learning rate of the neural networks")
 		("ann-max-epoch",
-			po::value< strictly_positive_integer >(&(this->ann_max_epoch))->default_value(strictly_positive_integer(1000)),
+			po::value< StrictlyPositiveInteger >(&(this->ann_max_epoch))->default_value(1000),
 			"Maximum number of learning iterations for the neural networks")
 		("ann-mse-target",
-			po::value< float >(&(this->ann_learning_rate))->default_value(0.0001),
+			po::value< Float >(&(this->ann_mse_target))->default_value(0.0001),
 			"Mean squared error targeted by the neural networks learning algorithm")
 		;
 
@@ -147,8 +178,9 @@ int CliParser::parse_argv(int argc, char ** argv)
 		}
 	}
 
-	if(this->ann_hidden_layers.empty()) {
-		this->ann_hidden_layers.push_back(3);
+	HiddenLayerVector hidden_layers = vm["ann-hidden-layer"].as< HiddenLayerVector >();
+	for(HiddenLayerVector::const_iterator it = hidden_layers.begin(); it < hidden_layers.end(); ++it) {
+		this->ann_hidden_layers.push_back((*it).value);
 	}
 
 	LOG4CXX_INFO(logger, "Main parameters:");
@@ -204,7 +236,7 @@ const double CliParser::get_lambda2() const {
 	return this->lambda2;
 }
 
-const std::vector< int > CliParser::get_ann_hidden_layers() const {
+const std::vector< unsigned int > CliParser::get_ann_hidden_layers() const {
 	return this->ann_hidden_layers;
 }
 
@@ -213,7 +245,7 @@ const float CliParser::get_ann_learning_rate() const {
 }
 
 const unsigned int CliParser::get_ann_max_epoch() const {
-	return this->ann_max_epoch.value;
+	return this->ann_max_epoch;
 }
 
 const float CliParser::get_ann_mse_target() const {

@@ -9,22 +9,75 @@
 
 namespace po = boost::program_options;
 
-class strictly_positive_integer {
+template <typename TNumericType>
+class NumericTypeWrapper
+{
 public :
-	explicit strictly_positive_integer() : value(1) {}
-	explicit strictly_positive_integer(const unsigned int v) : value(v) {}
+	typedef TNumericType NumericType;
 
-	unsigned int value;
+	NumericTypeWrapper() {}
+	NumericTypeWrapper(const NumericType v) : value(v) {}
+
+	NumericType value;
+
+	inline operator NumericType() const { return value; }
 };
 
-class positive_integer {
-public :
-	explicit positive_integer() : value(1) {}
-	explicit positive_integer(const unsigned int v) : value(v) {}
-
-	unsigned int value;
+class StrictlyPositiveInteger : public NumericTypeWrapper<unsigned int> {
+public:
+	StrictlyPositiveInteger() : NumericTypeWrapper< unsigned int >() {}
+	StrictlyPositiveInteger(const unsigned int v) : NumericTypeWrapper< unsigned int >(v) {}
 };
 
+class PositiveInteger : public NumericTypeWrapper<unsigned int> {
+public:
+	PositiveInteger() : NumericTypeWrapper< unsigned int >() {}
+	PositiveInteger(const unsigned int v) : NumericTypeWrapper< unsigned int >(v) {}
+};
+
+class Float : public NumericTypeWrapper<float> {
+public:
+	Float() : NumericTypeWrapper< float >() {}
+	Float(const float v) : NumericTypeWrapper< float >(v) {}
+};
+
+class Double : public NumericTypeWrapper<double> {
+public:
+	Double() : NumericTypeWrapper< double >() {}
+	Double(const double v) : NumericTypeWrapper< double >(v) {}
+};
+
+/*
+class StrictlyPositiveInteger {
+public :
+	StrictlyPositiveInteger() {}
+	StrictlyPositiveInteger(const unsigned int v) : value(v) {}
+
+	unsigned int value;
+
+	inline operator unsigned int() const { return value; }
+};
+
+class PositiveInteger {
+public :
+	PositiveInteger() {}
+	PositiveInteger(const unsigned int v) : value(v) {}
+
+	unsigned int value;
+
+	inline operator unsigned int() const { return value; }
+};
+
+class Float {
+public :
+	Float() {}
+	Float(const float v) : value(v) {}
+
+	float value;
+
+	inline operator float() const { return value; }
+};
+*/
 class CliParser
 {
 public:
@@ -37,7 +90,7 @@ public:
 	const int get_num_iter() const;
 	const double get_lambda1() const;
 	const double get_lambda2() const;
-	const std::vector< int > get_ann_hidden_layers() const;
+	const std::vector< unsigned int > get_ann_hidden_layers() const;
 	const float get_ann_learning_rate() const;
 	const unsigned int get_ann_max_epoch() const;
 	const float get_ann_mse_target() const;
@@ -46,14 +99,14 @@ private:
 	std::string input_image;
 	std::vector< std::string > class_images;
 	std::string export_dir;
-	int export_interval;
-	int num_iter;
-	double lambda1;
-	double lambda2;
-	std::vector< int > ann_hidden_layers;
-	float ann_learning_rate;
-	strictly_positive_integer ann_max_epoch;
-	float ann_mse_target;
+	PositiveInteger export_interval;
+	PositiveInteger num_iter;
+	Double lambda1;
+	Double lambda2;
+	std::vector< unsigned int > ann_hidden_layers;
+	Float ann_learning_rate;
+	StrictlyPositiveInteger ann_max_epoch;
+	Float ann_mse_target;
 };
 
 #endif /* _CLI_OPTIONS_H */
