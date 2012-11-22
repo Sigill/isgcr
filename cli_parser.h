@@ -3,6 +3,7 @@
 
 #include <boost/program_options.hpp>
 #include <vector>
+#include <iostream>
 
 #include <boost/regex.hpp>
 
@@ -10,15 +11,19 @@ namespace po = boost::program_options;
 
 class strictly_positive_integer {
 public :
-	strictly_positive_integer() : value(1)
-	{}
-
-	strictly_positive_integer(const unsigned int v) : value(v)
-	{}
+	explicit strictly_positive_integer() : value(1) {}
+	explicit strictly_positive_integer(const unsigned int v) : value(v) {}
 
 	unsigned int value;
 };
 
+class positive_integer {
+public :
+	explicit positive_integer() : value(1) {}
+	explicit positive_integer(const unsigned int v) : value(v) {}
+
+	unsigned int value;
+};
 
 class CliParser
 {

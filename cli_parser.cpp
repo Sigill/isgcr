@@ -5,31 +5,49 @@
 #include <sstream>
 #include <vector>
 
+#include "ParseUtils.h"
+
 
 #include "log4cxx/logger.h"
 
 namespace po = boost::program_options;
 
-void validate(boost::any& v, const std::vector<std::string>& values, strictly_positive_integer*, int)
+void validate(boost::any& v, const std::vector<std::string>& values, positive_integer*, int)
 {
-	static boost::regex r("([1-9]\\d{0,5})");
-
 	po::validators::check_first_occurrence(v);
 	const std::string& s = po::validators::get_single_string(values);
 
-	boost::smatch match;
-	if (boost::regex_match(s, match, r)) {
-		v = boost::any(strictly_positive_integer(boost::lexical_cast<unsigned int>(match[1])));
+	unsigned int value;
+	if(ParseUtils::Success == ParseUtils::ParseUInt(value, s.data(), 10) && value > 0)
+	{
+		v = boost::any(positive_integer(value));
 	} else {
 		throw po::invalid_option_value(s);
 	}
 }
 
-std::ostream &operator<<(std::ostream &out, strictly_positive_integer& t)
+void validate(boost::any& v, const std::vector<std::string>& values, strictly_positive_integer*, int)
 {
-	out << t.value;
+	po::validators::check_first_occurrence(v);
+	const std::string& s = po::validators::get_single_string(values);
 
-	return out;
+	unsigned int value;
+	if(ParseUtils::Success == ParseUtils::ParseUInt(value, s.data(), 10) && value > 0)
+	{
+		v = boost::any(strictly_positive_integer(value));
+	} else {
+		throw po::invalid_option_value(s);
+	}
+}
+
+std::ostream& operator<< (std::ostream& s, const strictly_positive_integer& v)
+{
+	return s << v.value;
+}
+
+std::ostream& operator<< (std::ostream& s, const positive_integer& v)
+{
+	return s << v.value;
 }
 
 std::ostream &operator<<(std::ostream &out, std::vector< int >& t)
@@ -81,8 +99,7 @@ int CliParser::parse_argv(int argc, char ** argv)
 			po::value< float >(&(this->ann_learning_rate))->default_value(0.1),
 			"Learning rate of the neural networks")
 		("ann-max-epoch",
-			po::value< strictly_positive_integer >(&(this->ann_max_epoch)),
-			//po::value< strictly_positive_integer >(&(this->ann_max_epoch))->default_value(1000),
+			po::value< strictly_positive_integer >(&(this->ann_max_epoch))->default_value(strictly_positive_integer(1000)),
 			"Maximum number of learning iterations for the neural networks")
 		("ann-mse-target",
 			po::value< float >(&(this->ann_learning_rate))->default_value(0.0001),
