@@ -18,7 +18,7 @@ void validate(boost::any& v, const std::vector<std::string>& values, positive_in
 	const std::string& s = po::validators::get_single_string(values);
 
 	unsigned int value;
-	if(ParseUtils::Success == ParseUtils::ParseUInt(value, s.data(), 10) && value > 0)
+	if( ParseUtils::ParseUInt(value, s.data(), 10) && value > 0 )
 	{
 		v = boost::any(positive_integer(value));
 	} else {
@@ -32,7 +32,7 @@ void validate(boost::any& v, const std::vector<std::string>& values, strictly_po
 	const std::string& s = po::validators::get_single_string(values);
 
 	unsigned int value;
-	if(ParseUtils::Success == ParseUtils::ParseUInt(value, s.data(), 10) && value > 0)
+	if( ParseUtils::ParseUInt(value, s.data(), 10) && value > 0 )
 	{
 		v = boost::any(strictly_positive_integer(value));
 	} else {
