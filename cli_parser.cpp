@@ -18,7 +18,7 @@ void validate(boost::any& v, const std::vector<std::string>& values, PositiveInt
 	const std::string& s = po::validators::get_single_string(values);
 
 	unsigned int value;
-	if( ParseUtils::ParseUInt(value, s.data(), 10) && value > 0 )
+	if( ParseUtils::ParseUInt(value, s.data(), 10) && value >= 0 )
 	{
 		v = boost::any(PositiveInteger(value));
 	} else {
