@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
-	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/debug/install/");
+	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
 	tlp::loadPlugins(0);
 
 
@@ -160,14 +160,11 @@ int main(int argc, char **argv)
 	tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
 	weight->setAllEdgeValue(1);
 
-	tlp::BooleanProperty *seed = graph->getLocalProperty<tlp::BooleanProperty>("Seed");
-	seed->setAllNodeValue(false);
+	tlp::DoubleVectorProperty *features_property = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
 
 	{
 		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
-
-		tlp::DoubleVectorProperty *features_property = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
 
 		const FeaturesImage::PixelType::ValueType *features_tmp;
 		std::vector<double> features(featuresImage->GetNumberOfComponentsPerPixel());
@@ -200,18 +197,21 @@ int main(int argc, char **argv)
 
 		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
 
+		tlp::BooleanProperty *seed = subgraph->getLocalProperty<tlp::BooleanProperty>("Seed");
+
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
 		tlp::DoubleVectorProperty *f0 = subgraph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
-		tlp::DoubleVectorProperty *features_property = subgraph->getProperty<tlp::DoubleVectorProperty>("features");
 		std::vector<double> features(1);
 
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
+			//double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
+			double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
 			features[0] = result[0];
 			f0->setNodeValue(u, features);
+			seed->setNodeValue(u, result[0] > 0.5);
 		}
 		delete itNodes;
 
@@ -248,6 +248,8 @@ int main(int argc, char **argv)
 			LOG4CXX_FATAL(logger, "Unable to apply the Cv_Ta algorithm: " << error4);
 			return -1;
 		}
+
+		subgraph->delLocalProperty("Seed");
 
 		regularized_segmentations[i] = subgraph->getLocalProperty< DoubleProperty >("fn");
 
