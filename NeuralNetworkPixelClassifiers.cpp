@@ -15,6 +15,8 @@ NeuralNetworkPixelClassifiers
 
 	m_NumberOfClasses = filenames.size();
 
+	m_NumberOfClassifiers = (m_NumberOfClasses == 2 ? 1 : m_NumberOfClasses);
+
 	boost::shared_ptr<TrainingClassVector> raw_learning_classes(new TrainingClassVector());
 
 	/**
@@ -105,14 +107,14 @@ NeuralNetworkPixelClassifiers
 	m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( training_data, fann_destroy_train ) );
 
 	// Storing copies of the first one
-	for(int i = 1; i < m_NumberOfClasses; ++i)
+	for(int i = 1; i < m_NumberOfClassifiers; ++i)
 	{
 		m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( fann_duplicate_train_data(training_data), fann_destroy_train ) );
 	}
 
 	// Set the desired output of a class to 1 in the dataset representing this class
 	int class_start = 0, current_class_size;
-	for(int i = 0; i < m_NumberOfClasses; ++i)
+	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
 		current_class_size = raw_learning_classes->operator[](i)->size();
 
@@ -130,7 +132,7 @@ NeuralNetworkPixelClassifiers
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	for(int i = 0; i < m_NumberOfClasses; ++i)
+	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
 		NeuralNetwork* ann = fann_create_standard_array(hidden_layers.size(), hidden_layers.data());
 		fann_set_activation_function_hidden(ann, FANN_SIGMOID);
@@ -142,7 +144,7 @@ NeuralNetworkPixelClassifiers
 	}
 
 	#pragma omp parallel for
-	for(int i = 0; i < m_NumberOfClasses; ++i)
+	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
 		LOG4CXX_INFO(logger, "Training ann #" << i);
 

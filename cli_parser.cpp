@@ -108,6 +108,9 @@ int CliParser::parse_argv(int argc, char ** argv)
 		("class-image,c",
 			po::value< std::vector< std::string > >(&(this->class_images))->required(),
 			"Defines a class to be learned from a binary image (at least 2 values required)")
+		("roi,r",
+			po::value< std::string >(&(this->region_of_interest))->default_value(""),
+			"Region of interest")
 		("export-dir,E",
 			po::value< std::string >(&(this->export_dir))->required(),
 			"Export directory")
@@ -185,6 +188,7 @@ int CliParser::parse_argv(int argc, char ** argv)
 
 	LOG4CXX_INFO(logger, "Main parameters:");
 	LOG4CXX_INFO(logger, "\tExport directory: " << this->export_dir);
+	LOG4CXX_INFO(logger, "\tRegion of interest: " << this->region_of_interest);
 	LOG4CXX_INFO(logger, "Regularization parameters:");
 	LOG4CXX_INFO(logger, "\tExport interval: " << this->export_interval);
 	LOG4CXX_INFO(logger, "\tNumber of iterations: " << this->num_iter);
@@ -216,6 +220,11 @@ const std::vector<std::string> CliParser::get_class_images() const
 const std::string CliParser::get_export_dir() const
 {
 	return this->export_dir;
+}
+
+const std::string CliParser::get_region_of_interest() const
+{
+	return this->region_of_interest;
 }
 
 const int CliParser::get_export_interval() const

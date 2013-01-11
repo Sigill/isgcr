@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <vector>
 #include <algorithm>
+#include <numeric>
 
 #include "common.h"
 #include "time_utils.h"
@@ -33,6 +34,27 @@
 
 using namespace tlp;
 using namespace std;
+
+//bool desc_comparator(const T a, const T b) { return a > b; }
+template <typename T>
+class desc_comparator {
+	public:
+		desc_comparator(std::vector<T> const & values) :m_values(values) {}
+		inline bool operator() (size_t a, size_t b) { return m_values[a] > m_values[b]; }
+	private:
+		std::vector<T> const& m_values;
+};
+
+template <typename T>
+std::vector<size_t> ordered(std::vector<T> const& values, desc_comparator<T> comparator) {
+	std::vector<size_t> indices(values.size());
+	//std::iota(begin(indices), end(indices), static_cast<size_t>(0)); // cxx11
+	for (size_t i = 0; i != indices.size(); ++i) indices[i] = i;
+
+	std::sort( indices.begin(), indices.end(), comparator );
+
+	return indices;
+}
 
 int main(int argc, char **argv)
 {
@@ -67,21 +89,6 @@ int main(int argc, char **argv)
 	} else {
 		if(!boost::filesystem::create_directories(path_export_dir)) {
 			LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " cannot be created");
-			exit(-1);
-		}
-	}
-
-	const unsigned int number_of_classes = cli_parser.get_class_images().size();
-
-	// Creation of the export folders for each class
-	for(int i = 0; i < number_of_classes; ++i)
-	{
-		std::ostringstream export_dir;
-		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
-
-		boost::filesystem::path path_class_export_dir(export_dir.str());
-		if(!boost::filesystem::create_directories(path_class_export_dir)) {
-			LOG4CXX_FATAL(logger, "Output dir " << path_class_export_dir << " cannot be created");
 			exit(-1);
 		}
 	}
@@ -121,22 +128,50 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
+	const unsigned int number_of_classifiers = pixelClassifiers.getNumberOfClassifiers();;
+
+    /*
+     * Creation of the export folders for each class
+     */
+	for(int i = 0; i < number_of_classifiers; ++i)
+	{
+		std::ostringstream export_dir;
+		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
+
+		boost::filesystem::path path_class_export_dir(export_dir.str());
+		if(!boost::filesystem::create_directories(path_class_export_dir)) {
+			LOG4CXX_FATAL(logger, "Output dir " << path_class_export_dir << " cannot be created");
+			exit(-1);
+		}
+	}
+
+
+    /*
+     * Training of neural networks
+     */
 	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Training neural networks");
 
-	std::vector< unsigned int > hidden_layers = cli_parser.get_ann_hidden_layers();
-	hidden_layers.insert(hidden_layers.begin(), featuresImage->GetNumberOfComponentsPerPixel()); // First layer: number of features
-	hidden_layers.push_back(1); // Last layer: one output
+	{
+		std::vector< unsigned int > hidden_layers = cli_parser.get_ann_hidden_layers();
+		hidden_layers.insert(hidden_layers.begin(), featuresImage->GetNumberOfComponentsPerPixel()); // First layer: number of features
+		hidden_layers.push_back(1); // Last layer: one output
 
-	pixelClassifiers.create_and_train_neural_networks(hidden_layers, cli_parser.get_ann_learning_rate(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
+		pixelClassifiers.create_and_train_neural_networks(hidden_layers, cli_parser.get_ann_learning_rate(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
+	}
 
 	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
-	tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
+	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
+	LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
+	tlp::initTulipLib(STRINGIFY(TULIP_DIR));
 	tlp::loadPlugins(0);
 
 
+    /*
+     * Creation of the graph structure
+     */
 	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Generating graph structure");
 
@@ -154,15 +189,32 @@ int main(int argc, char **argv)
 	everything->setAllNodeValue(true);
 	everything->setAllEdgeValue(true);
 
-	tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("Roi");
-	roi->setAllNodeValue(true);
+	LOG4CXX_INFO(logger, "Importing region of interest");
+	if(cli_parser.get_region_of_interest().empty()) {
+		LOG4CXX_INFO(logger, "No region of interest specified");
+		graph->getLocalProperty<tlp::BooleanProperty>("ROI")->setAllNodeValue(true);
+	} else {
+		tlp::DataSet data;
+		std::string error;
+		data.set< string >("dir::Mask folder", cli_parser.get_region_of_interest());
+		data.set< StringCollection >("Property type", StringCollection("boolean"));
+		data.set< string >("Property name", "ROI");
+
+		if(!graph->applyAlgorithm("Mask for image 3D", error, &data)) {
+			LOG4CXX_FATAL(logger, "Unable to import region of interest: " << error);
+			return -1;
+		}
+		LOG4CXX_INFO(logger, "Region of interest imported");
+	}
+
+	tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("ROI");
 
 	tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
 	weight->setAllEdgeValue(1);
 
 	tlp::DoubleVectorProperty *features_property = graph->getLocalProperty<tlp::DoubleVectorProperty>("features");
 
-	{
+	{ // Copy of the texture features into the graph
 		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
 
@@ -186,9 +238,12 @@ int main(int argc, char **argv)
 
 	LOG4CXX_INFO(logger, "Classifying pixels with neural networks");
 
-	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classes); 
+	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classifiers); 
 
-	for(unsigned int i = 0; i < number_of_classes; ++i)
+    /*
+     * Classification of the pixels by each classifier
+     */
+	for(unsigned int i = 0; i < number_of_classifiers; ++i)
 	{
 		std::ostringstream graph_name;
 		graph_name << std::setfill('0') << std::setw(6) << i;
@@ -207,16 +262,18 @@ int main(int argc, char **argv)
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			//double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
-			double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
-			features[0] = result[0];
-			f0->setNodeValue(u, features);
-			seed->setNodeValue(u, result[0] > 0.5);
+			//if(roi->getNodeValue(u)) // TODO Pose problème avec f0_size
+			{
+				//double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
+				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
+				features[0] = result[0];
+				f0->setNodeValue(u, features);
+				seed->setNodeValue(u, result[0] > 0.5);
+			}
 		}
 		delete itNodes;
 
 		LOG4CXX_INFO(logger, "Data classification done for image #" << i);
-
 
 		{
 			std::ostringstream output_graph;
@@ -225,21 +282,24 @@ int main(int argc, char **argv)
 		}
 
 
+		/*****************************************************/
+		/* Application of the graph regularisation algorithm */
+		/*****************************************************/
 		LOG4CXX_INFO(logger, "Applying CV_Ta algorithm on image #" << i);
 
 		std::ostringstream export_dir;
 		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
 		DataSet data4;
-		data4.set<PropertyInterface*>("Data", f0);
-		data4.set<PropertyInterface*>("Mask", seed);
-		data4.set<unsigned int>("Number of iterations", cli_parser.get_num_iter());
-		data4.set<double>("Lambda1", cli_parser.get_lambda1());
-		data4.set<double>("Lambda2", cli_parser.get_lambda2());
-		data4.set<unsigned int>("Export interval", cli_parser.get_export_interval());
-		data4.set<string>("dir::Export directory", export_dir.str());
-		data4.set<PropertyInterface*>("Weight", weight);
-		data4.set<PropertyInterface*>("Roi", roi);
+		data4.set<PropertyInterface*>("data", f0);
+		data4.set<PropertyInterface*>("seed", seed);
+		data4.set<unsigned int>("number of iterations", cli_parser.get_num_iter());
+		data4.set<double>("lambda1", cli_parser.get_lambda1());
+		data4.set<double>("lambda2", cli_parser.get_lambda2());
+		data4.set<unsigned int>("export interval", cli_parser.get_export_interval());
+		data4.set<string>("dir::export directory", export_dir.str());
+		data4.set<PropertyInterface*>("weight", weight);
+		data4.set<PropertyInterface*>("region of interest", roi);
 
 		LoggerPluginProgress pp("main.cv_ta");
 
@@ -272,7 +332,7 @@ int main(int argc, char **argv)
 
 	tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 	tlp::node u;
-	std::vector< double > values(number_of_classes);
+	std::vector< double > values(number_of_classifiers);
 
 	std::vector< double >::iterator max_it;
 	unsigned int max_pos;
@@ -280,7 +340,6 @@ int main(int argc, char **argv)
 	while(itNodes->hasNext())
 	{
 		u = itNodes->next();
-
 		id = u.id;
 		index[0] =  id % width;
 		id /= width;
@@ -288,17 +347,28 @@ int main(int argc, char **argv)
 		id /= height;
 		index[2] = id;
 
-		for(unsigned int i = 0; i < number_of_classes; ++i)
+		if(roi->getNodeValue(u))
 		{
-			values[i] = regularized_segmentations[i]->getNodeValue(u);
+			if(number_of_classifiers > 1)
+			{
+				for(unsigned int i = 0; i < number_of_classifiers; ++i)
+				{
+					values[i] = regularized_segmentations[i]->getNodeValue(u);
+				}
+
+				std::vector< size_t > ordered_indices = ordered(values, desc_comparator<double>(values));
+
+				if( (values[ordered_indices[0]] > 0.5) && ( (0.9 * values[ordered_indices[0]]) > values[ordered_indices[1]]) ) {
+					max_pos = ordered_indices[0] + 1;
+				} else {
+					max_pos = 0;
+				}
+			} else {
+				max_pos = (regularized_segmentations[0]->getNodeValue(u) > 0.5 ? 1 : 2); // No rejected class
+			}
+		} else {
+			max_pos = 0; // XXX Est ce que l'on met à 0 lorsque l'on est sensé ignorer le pixel ?
 		}
-
-		max_it = std::max_element(values.begin(), values.end());
-
-		if(*max_it < 0.9)
-			max_pos = 0;
-		else
-			max_pos = std::distance(values.begin(), max_it) + 1;
 
 		classification_image->SetPixel(index, max_pos);
 
@@ -310,7 +380,7 @@ int main(int argc, char **argv)
 	std::string final_export_dir = cli_parser.get_export_dir() + "/final_export";
 	if(!boost::filesystem::create_directories(boost::filesystem::path(final_export_dir)))
 	{
-		std::cerr << final_export_dir << " cannot be created" << std::endl;
+		LOG4CXX_FATAL(logger, final_export_dir << " cannot be created");
 		return -1;
 	}
 
@@ -318,7 +388,7 @@ int main(int argc, char **argv)
 		std::string final_class_export_dir = final_export_dir + "/classmap";
 		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
 		{
-			std::cerr << final_class_export_dir << " cannot be created" << std::endl;
+			LOG4CXX_FATAL(logger, final_class_export_dir << " cannot be created");
 			return -1;
 		}
 
@@ -335,7 +405,7 @@ int main(int argc, char **argv)
 		writer->Update();
 	}
 
-	for(int i = 0; i <= number_of_classes; ++i)
+	for(int i = 0; i <= number_of_classifiers; ++i)
 	{
 		std::ostringstream class_name;
 		if(i > 0)
@@ -348,7 +418,7 @@ int main(int argc, char **argv)
 		std::string final_class_export_dir = final_export_dir + "/" + class_name.str();
 		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
 		{
-			std::cerr << final_class_export_dir << " cannot be created" << std::endl;
+			LOG4CXX_FATAL(logger, final_class_export_dir << " cannot be created");
 			return -1;
 		}
 

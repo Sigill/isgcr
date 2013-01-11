@@ -85,6 +85,7 @@ public:
 	int parse_argv(int argc, char ** argv);
 	const std::string get_input_image() const;
 	const std::vector<std::string> get_class_images() const;
+	const std::string get_region_of_interest() const;
 	const std::string get_export_dir() const;
 	const int get_export_interval() const;
 	const int get_num_iter() const;
@@ -98,6 +99,7 @@ public:
 private:
 	std::string input_image;
 	std::vector< std::string > class_images;
+	std::string region_of_interest;
 	std::string export_dir;
 	PositiveInteger export_interval;
 	PositiveInteger num_iter;
