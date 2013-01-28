@@ -3,7 +3,7 @@ project(Haralick_Ann_Reguralization)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
-find_package(ITK REQUIRED)
+find_package(ITK REQUIRED COMPONENTS ITKCommon ITKIOImageBase ITKIOMeta ITKIOPNG ITKIOBMP ITKIOJPEG)
 include(${ITK_USE_FILE})
 
 find_package(FANN REQUIRED)
