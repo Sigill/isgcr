@@ -169,9 +169,9 @@ int main(int argc, char **argv)
 	tlp::loadPlugins(0);
 
 
-    /*
-     * Creation of the graph structure
-     */
+	/*
+	 * Creation of the graph structure
+	 */
 	last_timestamp = get_timestamp();
 	LOG4CXX_INFO(logger, "Generating graph structure");
 
@@ -252,7 +252,7 @@ int main(int argc, char **argv)
 
 		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
 
-		tlp::BooleanProperty *seed = subgraph->getLocalProperty<tlp::BooleanProperty>("Seed");
+		tlp::DoubleProperty *seed = subgraph->getLocalProperty<tlp::DoubleProperty>("Seed");
 
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
@@ -268,7 +268,7 @@ int main(int argc, char **argv)
 				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
 				features[0] = result[0];
 				f0->setNodeValue(u, features);
-				seed->setNodeValue(u, result[0] > 0.5);
+				seed->setNodeValue(u, result[0]); // XXX Changer pour pas de binarisation
 			}
 		}
 		delete itNodes;
