@@ -7,7 +7,6 @@
 
 #define __ImageDimension 3
 
-
 typedef itk::Image< unsigned char, __ImageDimension > ImageType;
 
 typedef itk::VectorImage< float, __ImageDimension > FeaturesImage;

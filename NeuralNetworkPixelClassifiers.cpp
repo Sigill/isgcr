@@ -5,19 +5,46 @@
 
 #include "log4cxx/logger.h"
 
-void
-NeuralNetworkPixelClassifiers
-::load_training_sets(const std::vector< std::string > filenames, typename FeaturesImage::Pointer featuresImage)
+void NeuralNetworkPixelClassifiers::init_training_sets(const int number_of_classes)
+{
+	this->m_NumberOfClasses = number_of_classes;
+
+	this->m_NumberOfComponentsPerPixel = 0;
+
+	//this->m_TrainingSets = new TrainingClassVector();
+	this->m_TrainingClasses = TrainingClassVector(this->m_NumberOfClasses);
+	for(int i = 0; i < this->m_NumberOfClasses; ++i) {
+		this->m_TrainingClasses[i] = boost::shared_ptr< TrainingClass >(new TrainingClass());
+	}
+
+	this->m_NumberOfClassifiers = (this->m_NumberOfClasses == 2 ? 1 : this->m_NumberOfClasses);
+}
+
+void NeuralNetworkPixelClassifiers::load_training_image(const std::string training_image_filename, const std::vector< std::string > training_classes_filenames)
+{
+	typename itk::ImageFileReader< FeaturesImage >::Pointer reader = itk::ImageFileReader< FeaturesImage >::New();
+	reader->SetFileName(training_image_filename);
+
+	try {
+		reader->Update();
+	} catch( itk::ExceptionObject &ex ) {
+		std::stringstream err;
+		err << "ITK is unable to load the image \"" << training_image_filename << "\" (" << ex.what() << ")";
+
+		throw TrainingClassException(err.str());
+	}
+
+	this->load_training_image(reader->GetOutput(), training_classes_filenames);
+}
+
+void NeuralNetworkPixelClassifiers::load_training_image(typename FeaturesImage::Pointer training_image, const std::vector< std::string > training_classes_filenames)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	m_TrainingSets.clear();
-
-	m_NumberOfClasses = filenames.size();
-
-	m_NumberOfClassifiers = (m_NumberOfClasses == 2 ? 1 : m_NumberOfClasses);
-
-	boost::shared_ptr<TrainingClassVector> raw_learning_classes(new TrainingClassVector());
+	if(this->m_NumberOfComponentsPerPixel == 0)
+		this->m_NumberOfComponentsPerPixel = training_image->GetNumberOfComponentsPerPixel();
+	else if(this->m_NumberOfComponentsPerPixel != training_image->GetNumberOfComponentsPerPixel())
+		throw TrainingClassException("The image has a number of components which is unexpected.");
 
 	/**
 	  * Loading the classes.
@@ -26,53 +53,56 @@ NeuralNetworkPixelClassifiers
 	  */
 	for(int i = 0; i < m_NumberOfClasses; ++i)
 	{
+		LOG4CXX_INFO(logger, "Loading class from " << training_classes_filenames[i]);
+
 		ImageType::Pointer image;
 		try {
-			image = ImageLoader::load(filenames[i]);
+			image = ImageLoader::load(training_classes_filenames[i]);
 		} catch (ImageLoadingException & ex) {
-			throw LearningClassException(ex.what());
+			throw TrainingClassException(ex.what());
 		} 
 
-		if(image->GetLargestPossibleRegion().GetSize() != featuresImage->GetLargestPossibleRegion().GetSize())
-		{
+		if(image->GetLargestPossibleRegion().GetSize() != training_image->GetLargestPossibleRegion().GetSize()) {
 			std::stringstream err;
-			err << "The dimensions of " << filenames[i] << "(" << image->GetLargestPossibleRegion().GetSize() << ") differs from the dimensions of the image (" << featuresImage->GetLargestPossibleRegion().GetSize() << ")";
-			throw LearningClassException(err.str());
+			err << "The dimensions of the training class image \"" << training_classes_filenames[i] << "\" (" << image->GetLargestPossibleRegion().GetSize()
+				<< ") differs from the dimensions of the training image (" << training_image->GetLargestPossibleRegion().GetSize() << ")";
+
+			throw TrainingClassException(err.str());
 		}
 
-		boost::shared_ptr< TrainingClass > current_class(new TrainingClass);
-
+		TrainingClass* current_class = this->m_TrainingClasses[i].get();
 
 		typename itk::ImageRegionConstIteratorWithIndex< ImageType > learningClassIterator(image, image->GetLargestPossibleRegion());
 		while(!learningClassIterator.IsAtEnd())
 		{
-			if(255 == learningClassIterator.Get())
-			{
-				current_class->push_back(featuresImage->GetPixel(learningClassIterator.GetIndex()));
+			if(255 == learningClassIterator.Get()) {
+				current_class->push_back(training_image->GetPixel(learningClassIterator.GetIndex()));
 			}
 
 			++learningClassIterator;
 		}
 
-		LOG4CXX_INFO(logger, "Learning class loaded from " << filenames[i]);
-
-		raw_learning_classes->push_back(current_class);
+		LOG4CXX_INFO(logger, "Learning class loaded from " << training_classes_filenames[i]);
 	}
+}
 
+void
+NeuralNetworkPixelClassifiers
+::build_training_sets()
+{
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	unsigned int total_number_of_pixels = 0;
 	{
 		unsigned int size;
 		for(int i = 0; i < m_NumberOfClasses; ++i)
 		{
-			size = raw_learning_classes->operator[](i)->size();
+			size = m_TrainingClasses[i]->size();
 			total_number_of_pixels += size;
 
 			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << size << " elements");
 		}
 	}
-
-	m_NumberOfComponentsPerPixel = featuresImage->GetNumberOfComponentsPerPixel();
 
 	// Creating one data set that will be used to initialized the others
 	TrainingSet * training_data = fann_create_train(total_number_of_pixels, m_NumberOfComponentsPerPixel, 1);
@@ -81,7 +111,7 @@ NeuralNetworkPixelClassifiers
 
 	for(int i = 0; i < m_NumberOfClasses; ++i)
 	{
-		boost::shared_ptr< TrainingClass > current_class = raw_learning_classes->operator[](i);
+		boost::shared_ptr< TrainingClass > current_class = m_TrainingClasses[i];
 
 		TrainingClass::const_iterator current_raw_class_it = current_class->begin(), current_raw_class_end = current_class->end();
 
@@ -104,19 +134,17 @@ NeuralNetworkPixelClassifiers
 	}
 
 	// Storing the first one
-	m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( training_data, fann_destroy_train ) );
+	this->m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( training_data, fann_destroy_train ) );
 
 	// Storing copies of the first one
-	for(int i = 1; i < m_NumberOfClassifiers; ++i)
-	{
-		m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( fann_duplicate_train_data(training_data), fann_destroy_train ) );
+	for(int i = 1; i < m_NumberOfClassifiers; ++i) {
+		this->m_TrainingSets.push_back( boost::shared_ptr< TrainingSet >( fann_duplicate_train_data(training_data), fann_destroy_train ) );
 	}
 
 	// Set the desired output of a class to 1 in the dataset representing this class
 	int class_start = 0, current_class_size;
-	for(int i = 0; i < m_NumberOfClassifiers; ++i)
-	{
-		current_class_size = raw_learning_classes->operator[](i)->size();
+	for(int i = 0; i < m_NumberOfClassifiers; ++i) {
+		current_class_size = this->m_TrainingClasses[i]->size();
 
 		fann_type *output_start = *(m_TrainingSets[i]->output) + class_start;
 
@@ -159,9 +187,17 @@ NeuralNetworkPixelClassifiers
 	}
 }
 
-boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > 
+boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork >
 NeuralNetworkPixelClassifiers
 ::get_neural_network(const unsigned int i)
 {
 	return m_NeuralNetworks[i];
+}
+
+void
+NeuralNetworkPixelClassifiers
+::save_neural_networks(const std::string dir)
+{
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+	LOG4CXX_INFO(logger, "Saving neural networks in " << dir);
 }

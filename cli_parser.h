@@ -4,6 +4,7 @@
 #include <boost/program_options.hpp>
 #include <vector>
 #include <iostream>
+#include <stdexcept>
 
 #include <boost/regex.hpp>
 
@@ -78,37 +79,65 @@ public :
 	inline operator float() const { return value; }
 };
 */
+
+
+class CliException : public std::runtime_error
+{
+  public:
+      CliException ( const std::string &err ) : std::runtime_error (err) {}
+};
+
 class CliParser
 {
 public:
+	enum ParseResult {
+		CONTINUE = 0,
+		EXIT,
+	};
+
 	CliParser();
-	int parse_argv(int argc, char ** argv);
+	ParseResult parse_argv(int argc, char ** argv);
+
 	const std::string get_input_image() const;
-	const std::vector<std::string> get_class_images() const;
 	const std::string get_region_of_interest() const;
 	const std::string get_export_dir() const;
-	const int get_export_interval() const;
-	const int get_num_iter() const;
-	const double get_lambda1() const;
-	const double get_lambda2() const;
+	const int         get_export_interval() const;
+	const int         get_num_iter() const;
+	const double      get_lambda1() const;
+	const double      get_lambda2() const;
+
+	const std::vector< std::string >  get_ann_images() const;
+	const std::vector< std::string >  get_ann_images_classes() const;
+	const std::string                 get_ann_config_dir() const;
 	const std::vector< unsigned int > get_ann_hidden_layers() const;
-	const float get_ann_learning_rate() const;
-	const unsigned int get_ann_max_epoch() const;
-	const float get_ann_mse_target() const;
+	const float                       get_ann_learning_rate() const;
+	const unsigned int                get_ann_max_epoch() const;
+	const float                       get_ann_mse_target() const;
 
 private:
-	std::string input_image;
-	std::vector< std::string > class_images;
-	std::string region_of_interest;
-	std::string export_dir;
+	typedef std::vector< StrictlyPositiveInteger > HiddenLayerVector;
+
+	std::string     input_image;
+	std::string     region_of_interest;
+	std::string     export_dir;
 	PositiveInteger export_interval;
 	PositiveInteger num_iter;
-	Double lambda1;
-	Double lambda2;
-	std::vector< unsigned int > ann_hidden_layers;
-	Float ann_learning_rate;
-	StrictlyPositiveInteger ann_max_epoch;
-	Float ann_mse_target;
+	Double          lambda1;
+	Double          lambda2;
+
+	std::vector< std::string >  ann_images;
+	std::vector< std::string >  ann_images_classes;
+	std::string                 ann_config_dir;
+	HiddenLayerVector           ann_hidden_layers;
+	Float                       ann_learning_rate;
+	StrictlyPositiveInteger     ann_max_epoch;
+	Float                       ann_mse_target;
+
+	void check_ann_parameters();
+	void check_regularization_parameters();
+
+	void print_ann_parameters();
+	void print_regularization_parameters();
 };
 
 #endif /* _CLI_OPTIONS_H */
