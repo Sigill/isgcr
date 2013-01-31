@@ -32,6 +32,7 @@ public:
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 
 	void save_neural_networks(const std::string dir);
+	void load_neural_networks(const std::string dir);
 
 	const unsigned int getNumberOfClassifiers() const { return m_NumberOfClassifiers; }
 	const unsigned int getNumberOfComponentsPerPixel() const { return m_NumberOfComponentsPerPixel; }

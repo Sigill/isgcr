@@ -138,7 +138,12 @@ int main(int argc, char **argv)
 	NeuralNetworkPixelClassifiers pixelClassifiers;
 
 	if(cli_parser.get_ann_images_classes().empty()) {
-		// XXX Load from configuration
+		try {
+			pixelClassifiers.load_neural_networks(cli_parser.get_ann_config_dir());
+		} catch (std::runtime_error &err) {
+			LOG4CXX_FATAL(logger, err.what());
+			exit(-1);
+		}
 	} else {
 		/*
 		 * Loading the training classes.
@@ -215,7 +220,12 @@ int main(int argc, char **argv)
 				exit(-1);
 			}
 
-			pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
+			try {
+				pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
+			} catch (std::runtime_error &err) {
+				LOG4CXX_FATAL(logger, err.what());
+				exit(-1);
+			}
 		}
 	}
 
@@ -231,6 +241,12 @@ int main(int argc, char **argv)
 
 	if(cli_parser.get_input_image().empty())
 		exit(0);
+
+	if(pixelClassifiers.getNumberOfComponentsPerPixel() != input_image->GetNumberOfComponentsPerPixel()) {
+		LOG4CXX_FATAL(logger, "The classifier is configured to work on pixels with " << pixelClassifiers.getNumberOfComponentsPerPixel() << " components per pixel,");
+		LOG4CXX_FATAL(logger, "but the input image has " << input_image->GetNumberOfComponentsPerPixel() << " components per pixel.");
+		exit(-1);
+	}
 
 	bfs::path export_dir_path(cli_parser.get_export_dir());
 	try {
@@ -351,13 +367,12 @@ int main(int argc, char **argv)
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			//if(roi->getNodeValue(u)) // TODO Pose problème avec f0_size
+			if(roi->getNodeValue(u)) // Fut un temps ou cela posait problème avec f0_size, mais cela est réparé
 			{
-				//double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
 				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
 				features[0] = result[0];
 				f0->setNodeValue(u, features);
-				seed->setNodeValue(u, result[0]); // XXX Changer pour pas de binarisation
+				seed->setNodeValue(u, result[0]);
 			}
 		}
 		delete itNodes;

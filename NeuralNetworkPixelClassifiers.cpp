@@ -5,6 +5,19 @@
 
 #include "log4cxx/logger.h"
 
+#include <boost/filesystem.hpp>
+#include <boost/regex.hpp>
+
+#include <string>
+#include <stdexcept>
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
+
+struct _StringComparator {
+	  bool operator() (const std::string a, const std::string b) { return a.compare(b);}
+} StringComparator;
+
 void NeuralNetworkPixelClassifiers::init_training_sets(const int number_of_classes)
 {
 	this->m_NumberOfClasses = number_of_classes;
@@ -200,4 +213,61 @@ NeuralNetworkPixelClassifiers
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 	LOG4CXX_INFO(logger, "Saving neural networks in " << dir);
+
+	for(int i = 0; i < this->m_NumberOfClassifiers; ++i) {
+		std::ostringstream filename;
+		filename << std::setfill('0') << std::setw(6) << (i+1) << ".ann";
+
+		boost::filesystem::path path = boost::filesystem::path(dir) / filename.str();
+
+		if(0 != fann_save(this->m_NeuralNetworks[i].get(), path.native().c_str())) {
+			throw std::runtime_error("Cannot save neural network in " + path.native());
+		}
+	}
+}
+
+void
+NeuralNetworkPixelClassifiers
+::load_neural_networks(const std::string dir)
+{
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+	LOG4CXX_INFO(logger, "Loading neural networks from " << dir);
+
+	const boost::regex config_file_filter( "\\d{6,6}.ann" );
+	std::vector< std::string > config_files;
+
+	boost::filesystem::directory_iterator end_itr; // Default ctor yields past-the-end
+	for( boost::filesystem::directory_iterator i( dir ); i != end_itr; ++i ) {
+		// Skip if not a file
+		if( !boost::filesystem::is_regular_file( i->status() ) ) continue;
+
+		boost::smatch what;
+
+		// Skip if no match
+		if( !boost::regex_match( i->path().filename().native(), what, config_file_filter ) ) continue;
+
+		// File matches, store it
+		config_files.push_back( i->path().native() );
+	}
+
+	std::sort(config_files.begin(), config_files.end(), StringComparator);
+
+	this->m_NumberOfClassifiers = config_files.size();
+
+	for(std::vector<std::string>::const_iterator it = config_files.begin(); it != config_files.end(); ++it) {
+		LOG4CXX_INFO(logger, "Loading neural network from " << *it);
+
+		NeuralNetwork* ann = fann_create_from_file(it->c_str());
+
+		if(ann == NULL)
+			throw std::runtime_error("Cannot load neural network from " + *it);
+
+		this->m_NeuralNetworks.push_back( boost::shared_ptr< NeuralNetwork >( ann, fann_destroy ) );
+	}
+
+	this->m_NumberOfClasses = (this->m_NumberOfClassifiers == 1 ? 2 : this->m_NumberOfClassifiers);
+	this->m_NumberOfComponentsPerPixel = fann_get_num_input(this->m_NeuralNetworks.front().get());
+
+	LOG4CXX_INFO(logger, "Number of classes: " << this->m_NumberOfClasses);
+	LOG4CXX_INFO(logger, "Number of components per pixel: " << this->m_NumberOfComponentsPerPixel);
 }
