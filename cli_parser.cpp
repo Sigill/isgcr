@@ -277,7 +277,7 @@ void CliParser::check_ann_parameters() {
 			const int number_of_classes_per_image = number_of_classes / number_of_images;
 
 			if((number_of_classes % number_of_images != 0) || (number_of_classes_per_image < 2)) {
-				throw CliException("You need to provide the same number of classes (at least two)"
+				throw CliException("You need to provide the same number of classes (at least two) "
 						"for every image used for learning.");
 			}
 		}
