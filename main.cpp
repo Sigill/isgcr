@@ -379,12 +379,6 @@ int main(int argc, char **argv)
 
 		LOG4CXX_INFO(logger, "Data classification done for image #" << i);
 
-		{
-			bfs::path output_graph = export_dir_path / ("graph_" + pad(i) + ".tlp");
-			tlp::saveGraph(subgraph, output_graph.native());
-		}
-
-
 		/*****************************************************/
 		/* Application of the graph regularisation algorithm */
 		/*****************************************************/
@@ -418,7 +412,9 @@ int main(int argc, char **argv)
 		LOG4CXX_INFO(logger, "Regularization done for image #" << i);
 	}
 
-	tlp::saveGraph(graph, cli_parser.get_export_dir() + "/" + "graph.tlp");
+	if(cli_parser.get_debug()) {
+		bfs::path output_graph = export_dir_path / "graph.tlp";
+	}
 
 	ImageType::Pointer classification_image = ImageType::New();
 	classification_image->SetRegions(input_image->GetLargestPossibleRegion());

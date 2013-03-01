@@ -99,6 +99,8 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 	desc.add_options()
 		("help,h",
 			"Produce help message.")
+		("debug",
+			"Enables debug mode (will export graphs).")
 		("input-image,i",
 			po::value< std::string >(&(this->input_image)),
 			"Input image.")
@@ -161,6 +163,8 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		throw CliException(err.what());
 	}
 
+	this->debug = vm.count("debug");
+
 	check_ann_parameters();
 
 	if( !this->input_image.empty() ) {
@@ -177,6 +181,11 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		print_regularization_parameters();
 
 	return CONTINUE;
+}
+
+const bool CliParser::get_debug() const
+{
+	return this->debug;
 }
 
 const std::string CliParser::get_input_image() const

@@ -98,6 +98,8 @@ public:
 	CliParser();
 	ParseResult parse_argv(int argc, char ** argv);
 
+	const bool get_debug() const;
+
 	const std::string get_input_image() const;
 	const std::string get_region_of_interest() const;
 	const std::string get_export_dir() const;
@@ -116,6 +118,8 @@ public:
 
 private:
 	typedef std::vector< StrictlyPositiveInteger > HiddenLayerVector;
+
+	bool debug;
 
 	std::string     input_image;
 	std::string     region_of_interest;
