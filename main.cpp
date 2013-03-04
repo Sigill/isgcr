@@ -41,11 +41,11 @@ namespace bfs = boost::filesystem;
 //bool desc_comparator(const T a, const T b) { return a > b; }
 template <typename T>
 class desc_comparator {
-	public:
-		desc_comparator(std::vector<T> const & values) :m_values(values) {}
-		inline bool operator() (size_t a, size_t b) { return m_values[a] > m_values[b]; }
-	private:
-		std::vector<T> const& m_values;
+public:
+	desc_comparator(std::vector<T> const & values) :m_values(values) {}
+	inline bool operator() (size_t a, size_t b) { return m_values[a] > m_values[b]; }
+private:
+	std::vector<T> const& m_values;
 };
 
 template <typename T>
@@ -348,9 +348,9 @@ int main(int argc, char **argv)
 
 	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classifiers); 
 
-    /*
-     * Classification of the pixels by each classifier
-     */
+	/*
+	 * Classification of the pixels by each classifier
+	 */
 	for(unsigned int i = 0; i < number_of_classifiers; ++i)
 	{
 		tlp::Graph* subgraph = graph->addSubGraph(everything, 0, pad(i));
