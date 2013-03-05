@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 
+#include "ClassificationDataset.h"
+
 class TrainingClassException : public std::runtime_error
 {
   public:
@@ -20,13 +22,8 @@ public:
 	typedef struct fann NeuralNetwork;
 	typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
-	void init_training_sets(const int number_of_classes);
-	void load_training_image(const std::string training_image_filename, const std::vector< std::string > training_classes_filenames);
-	void load_training_image(typename FeaturesImage::Pointer training_mage, const std::vector< std::string > training_classes_filenames);
-
-	void build_training_sets();
-
-	void create_and_train_neural_networks( const std::vector< unsigned int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target );
+	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
+	void train_neural_networks( boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets, const unsigned int max_epoch, const float mse_target );
 
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 
@@ -37,17 +34,8 @@ public:
 	const unsigned int getNumberOfComponentsPerPixel() const { return m_NumberOfComponentsPerPixel; }
 
 private:
-	typedef struct fann_train_data TrainingSet;
-	typedef std::vector< boost::shared_ptr< TrainingSet > > TrainingSetVector;
-
-	typedef std::vector< typename FeaturesImage::PixelType > TrainingClass;
-	typedef std::vector< boost::shared_ptr< TrainingClass > > TrainingClassVector;
-
-	unsigned int m_NumberOfClasses;
 	unsigned int m_NumberOfClassifiers;
 	unsigned int m_NumberOfComponentsPerPixel;
-	TrainingClassVector m_TrainingClasses;
-	TrainingSetVector m_TrainingSets;
 	NeuralNetworkVector m_NeuralNetworks;
 };
 

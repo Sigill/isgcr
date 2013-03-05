@@ -9,6 +9,7 @@
 #include "time_utils.h"
 #include "cli_parser.h"
 #include "image_loader.h"
+#include "ClassificationDataset.h"
 #include "NeuralNetworkPixelClassifiers.h"
 
 #include "doublefann.h"
@@ -135,6 +136,7 @@ int main(int argc, char **argv)
 		LOG4CXX_INFO(logger, "Features image loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 	}
 
+	ClassificationDataset classificationDataset;
 	NeuralNetworkPixelClassifiers pixelClassifiers;
 
 	if(cli_parser.get_ann_images_classes().empty()) {
@@ -159,8 +161,8 @@ int main(int argc, char **argv)
 				 */
 				LOG4CXX_INFO(logger, "Loading training classes from input image");
 
-				pixelClassifiers.init_training_sets(cli_parser.get_ann_images_classes().size());
-				pixelClassifiers.load_training_image(input_image, cli_parser.get_ann_images_classes());
+				classificationDataset.init(cli_parser.get_ann_images_classes().size());
+				classificationDataset.load_image(input_image, cli_parser.get_ann_images_classes());
 			} else {
 				/*
 				 * A list of image is available to train the classifier.
@@ -169,14 +171,14 @@ int main(int argc, char **argv)
 				std::vector< std::string > ann_images_classes = cli_parser.get_ann_images_classes();
 				int number_of_classes = ann_images_classes.size() / ann_images.size();
 
-				pixelClassifiers.init_training_sets(number_of_classes);
+				classificationDataset.init(number_of_classes);
 
 				for(int i = 0; i < ann_images.size(); ++i) {
 					LOG4CXX_INFO(logger, "Loading training class #" << i << " from " << ann_images[i]);
 
 					std::vector< std::string > training_classes(ann_images_classes.begin() + i * number_of_classes, ann_images_classes.begin() + (i+1) * number_of_classes);
 
-					pixelClassifiers.load_training_image(ann_images[i], training_classes);
+					classificationDataset.load_image(ann_images[i], training_classes);
 				}
 			}
 		} catch (TrainingClassException & ex) {
@@ -184,8 +186,8 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 
-		pixelClassifiers.build_training_sets();
-		// XXX Supprimer le training set temporaire
+		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannDatasets = classificationDataset.build_fann_binary_training_sets();
+		// TODO Supprimer le training set temporaire
 
 		LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
@@ -198,10 +200,12 @@ int main(int argc, char **argv)
 		{
 			std::vector< unsigned int > ann_layers = cli_parser.get_ann_hidden_layers();
 
-			ann_layers.insert(ann_layers.begin(), pixelClassifiers.getNumberOfComponentsPerPixel()); // First layer: number of features
+			ann_layers.insert(ann_layers.begin(), classificationDataset.getDataLength()); // First layer: number of features
 			ann_layers.push_back(1); // Last layer: one output
 
-			pixelClassifiers.create_and_train_neural_networks(ann_layers, cli_parser.get_ann_learning_rate(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
+			const int numberOfClasses = fannDatasets->size();
+			pixelClassifiers.create_neural_networks((numberOfClasses == 2 ? 1 : numberOfClasses), ann_layers, cli_parser.get_ann_learning_rate());
+			pixelClassifiers.train_neural_networks(fannDatasets, cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
 		}
 		// XXX Supprimer le training set
 
