@@ -37,7 +37,11 @@ void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, con
 	}
 }
 
-void NeuralNetworkPixelClassifiers::train_neural_networks( boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets, const unsigned int max_epoch, const float mse_target )
+void NeuralNetworkPixelClassifiers::train_neural_networks(
+	boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets,
+	const unsigned int max_epoch,
+	const float mse_target,
+	boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > validation_sets )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
@@ -46,14 +50,28 @@ void NeuralNetworkPixelClassifiers::train_neural_networks( boost::shared_ptr< ty
 	{
 		LOG4CXX_INFO(logger, "Training ann #" << i);
 
-		boost::shared_ptr< NeuralNetwork > current_neural_network = m_NeuralNetworks[i];
+		NeuralNetwork *current_neural_network = m_NeuralNetworks[i].get();
 		boost::shared_ptr< ClassificationDataset::FannDataset> current_training_set = training_sets->operator[](i);
 
 		fann_shuffle_train_data(current_training_set.get());
 
-		fann_train_on_data(current_neural_network.get(), current_training_set.get(), max_epoch, 0, mse_target);
+		if(validation_sets.get() == NULL)
+		{
+			fann_train_on_data(current_neural_network, current_training_set.get(), max_epoch, 0, mse_target);
+		} else {
+			boost::shared_ptr< ClassificationDataset::FannDataset> current_validation_set = validation_sets->operator[](i);
+			fann_shuffle_train_data(current_validation_set.get());
 
-		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network.get()));
+			for(int j = 0; j < max_epoch; ++j) {
+				float train_mse = fann_train_epoch(current_neural_network, current_training_set.get());
+
+				float validation_mse = fann_test_data(current_neural_network, current_validation_set.get());
+
+				LOG4CXX_INFO(logger, "MSE for ann #" << i << "; " << j << "; " << train_mse << "; " << validation_mse);
+			}
+		}
+
+		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network));
 	}
 }
 

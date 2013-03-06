@@ -84,22 +84,22 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 }
 
 boost::shared_ptr< typename ClassificationDataset::FannDatasetVector >
-ClassificationDataset::build_fann_binary_training_sets()
+ClassificationDataset::build_fann_binary_sets()
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	unsigned int total_number_of_pixels = 0;
+	unsigned int total_number_of_elements = 0;
 	{
 		for(int i = 0; i < m_NumberOfClasses; ++i)
 		{
-			total_number_of_pixels += m_Classes[i].size();
+			total_number_of_elements += m_Classes[i].size();
 
 			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << m_Classes[i].size() << " elements");
 		}
 	}
 
 	// Creating one data set that will be used to initialized the others
-	FannDataset *training_data = fann_create_train(total_number_of_pixels, m_DataLength, 1);
+	FannDataset *training_data = fann_create_train(total_number_of_elements, m_DataLength, 1);
 	fann_type **training_data_input_it = training_data->input;
 	fann_type **training_data_output_it = training_data->output;
 

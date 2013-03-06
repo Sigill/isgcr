@@ -115,6 +115,8 @@ public:
 	const float                       get_ann_learning_rate() const;
 	const unsigned int                get_ann_max_epoch() const;
 	const float                       get_ann_mse_target() const;
+	const std::vector< std::string >  get_ann_validation_images() const;
+	const std::vector< std::string >  get_ann_validation_images_classes() const;
 
 private:
 	typedef std::vector< StrictlyPositiveInteger > HiddenLayerVector;
@@ -136,6 +138,8 @@ private:
 	Float                       ann_learning_rate;
 	StrictlyPositiveInteger     ann_max_epoch;
 	Float                       ann_mse_target;
+	std::vector< std::string >  ann_validation_images;
+	std::vector< std::string >  ann_validation_images_classes;
 
 	void check_ann_parameters();
 	void check_regularization_parameters();

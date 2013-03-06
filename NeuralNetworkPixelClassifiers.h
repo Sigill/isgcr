@@ -10,12 +10,6 @@
 
 #include "ClassificationDataset.h"
 
-class TrainingClassException : public std::runtime_error
-{
-  public:
-      TrainingClassException ( const std::string &err ) : std::runtime_error (err) {}
-};
-
 class NeuralNetworkPixelClassifiers
 {
 public:
@@ -23,7 +17,11 @@ public:
 	typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
 	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
-	void train_neural_networks( boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets, const unsigned int max_epoch, const float mse_target );
+	void train_neural_networks(
+		boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets,
+		const unsigned int max_epoch,
+		const float mse_target,
+		boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > validation_sets );
 
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 

@@ -28,7 +28,7 @@ public:
 	void load_image(const std::string image_filename, const std::vector< std::string > class_filenames);
 	void load_image(typename FeaturesImage::Pointer image, const std::vector< std::string > class_filenames);
 
-	boost::shared_ptr< FannDatasetVector > build_fann_binary_training_sets();
+	boost::shared_ptr< FannDatasetVector > build_fann_binary_sets();
 
 	int getNumberOfClasses() { return m_NumberOfClasses; }
 	int getDataLength() { return m_DataLength; }

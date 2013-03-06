@@ -143,6 +143,12 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		("ann-mse-target",
 			po::value< Float >(&(this->ann_mse_target))->default_value(0.0001),
 			"Mean squared error targeted by the neural networks learning algorithm.")
+		("ann-validation-image",
+			po::value< std::vector< std::string > >(&(this->ann_validation_images))->multitoken(),
+			"The images to use to validate the training of the neural network (use --ann-validation-image-class to define associated classes). Multiple images can be specified. They mush have the same number of components per pixels than the images on which the neural network is trained.")
+		("ann-validation-image-class",
+			po::value< std::vector< std::string > >(&(this->ann_validation_images_classes))->multitoken(),
+			"Defines the classes of the images used to validate de training of the neural network. If multiple images are used, they must have as much classes as the images on which the neural network is trained.")
 		;
 
 	po::variables_map vm;
@@ -252,6 +258,17 @@ const float CliParser::get_ann_mse_target() const {
 	return this->ann_mse_target;
 }
 
+const std::vector<std::string> CliParser::get_ann_validation_images() const
+{
+	return this->ann_validation_images;
+}
+
+const std::vector<std::string> CliParser::get_ann_validation_images_classes() const
+{
+	return this->ann_validation_images_classes;
+}
+
+
 void CliParser::check_ann_parameters() {
 	if(this->ann_images_classes.empty()) {
 		/*
@@ -266,6 +283,8 @@ void CliParser::check_ann_parameters() {
 		/*
 		 * Some classes have been provided.
 		 */
+		int number_of_images, number_of_classes, number_of_classes_per_image;
+
 		if(this->ann_images.empty()) {
 			/*
 			 * If no learning image have been provided,
@@ -276,18 +295,37 @@ void CliParser::check_ann_parameters() {
 				                   "a list of images to use to train the neural networks, or provide an input image"
 				                   "for the algorithm.");
 			}
+
+			number_of_images            = 1;
+			number_of_classes           = this->ann_images_classes.size();
+			number_of_classes_per_image = number_of_classes;
 		} else {
 			/*
 			 * We need to have the same number of classes (at least 2) for every
 			 * image used for the training of the neural networks.
 			 */
-			const int number_of_images = this->ann_images.size();
-			const int number_of_classes = this->ann_images_classes.size();
-			const int number_of_classes_per_image = number_of_classes / number_of_images;
+			number_of_images            = this->ann_images.size();
+			number_of_classes           = this->ann_images_classes.size();
+			number_of_classes_per_image = number_of_classes / number_of_images;
 
-			if((number_of_classes % number_of_images != 0) || (number_of_classes_per_image < 2)) {
+			if((number_of_classes % number_of_images != 0) || // Enough class for each image
+			   (number_of_classes_per_image < 2))             // At least two class per image
+			{
 				throw CliException("You need to provide the same number of classes (at least two) "
 						"for every image used for learning.");
+			}
+		}
+
+		if(!this->ann_validation_images.empty()) {
+			const int number_of_validation_images = this->ann_validation_images.size(),
+			          number_of_validation_classes = this->ann_validation_images_classes.size(),
+			          number_of_classes_per_validation_image = number_of_validation_classes / number_of_validation_images;
+
+			if((number_of_validation_classes % number_of_validation_images != 0) ||     // Enough class for each image
+			   (number_of_classes_per_validation_image < 2) ||                          // At least two class per image
+			   (number_of_classes_per_validation_image != number_of_classes_per_image)) // As many classes as the for the images used in training
+			{
+				throw CliException("You have an invalid number of classes for the validation images.");
 			}
 		}
 	}
@@ -307,7 +345,6 @@ void CliParser::print_ann_parameters() {
 		}
 	} else {
 		std::vector< std::string > training_images = (this->ann_images.size() == 0 ? std::vector< std::string >(1, this->input_image) : this->ann_images);
-		std::cout << training_images << std::endl;
 		const int number_of_images = training_images.size();
 		const int number_of_classes = this->ann_images_classes.size();
 		const int number_of_classes_per_image = number_of_classes / number_of_images;
