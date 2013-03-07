@@ -45,6 +45,8 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
+	// XXX We say that validation_sets is either empty or contains non-empty fann_train_data...
+
 	#pragma omp parallel for
 	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
@@ -53,22 +55,20 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 		NeuralNetwork *current_neural_network = m_NeuralNetworks[i].get();
 		boost::shared_ptr< ClassificationDataset::FannDataset> current_training_set = training_sets->operator[](i);
 
-		fann_shuffle_train_data(current_training_set.get());
-
 		if(validation_sets.get() == NULL)
 		{
 			fann_train_on_data(current_neural_network, current_training_set.get(), max_epoch, 0, mse_target);
 		} else {
 			boost::shared_ptr< ClassificationDataset::FannDataset> current_validation_set = validation_sets->operator[](i);
-			fann_shuffle_train_data(current_validation_set.get());
 
 			for(int j = 0; j < max_epoch; ++j) {
-				float train_mse = fann_train_epoch(current_neural_network, current_training_set.get());
-
-				float validation_mse = fann_test_data(current_neural_network, current_validation_set.get());
+				float train_mse      = fann_train_epoch( current_neural_network, current_training_set.get()  ),
+				      validation_mse = fann_test_data(  current_neural_network, current_validation_set.get() );
 
 				LOG4CXX_INFO(logger, "MSE for ann #" << i << "; " << j << "; " << train_mse << "; " << validation_mse);
 			}
+
+			fann_test_data(current_neural_network, current_training_set.get());
 		}
 
 		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network));

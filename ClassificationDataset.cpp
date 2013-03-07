@@ -83,7 +83,7 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 	}
 }
 
-boost::shared_ptr< typename ClassificationDataset::FannDatasetVector >
+boost::shared_ptr< ClassificationDataset::FannDatasetVector >
 ClassificationDataset::build_fann_binary_sets()
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
@@ -92,6 +92,12 @@ ClassificationDataset::build_fann_binary_sets()
 	{
 		for(int i = 0; i < m_NumberOfClasses; ++i)
 		{
+			if(m_Classes[i].empty()) {
+				std::stringstream err;
+				err << "The class #" << i << " is empty.";
+					throw ClassificationDatasetException(err.str());
+			}
+
 			total_number_of_elements += m_Classes[i].size();
 
 			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << m_Classes[i].size() << " elements");

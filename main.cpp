@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
+#include <cmath>
 
 #include "common.h"
 #include "time_utils.h"
@@ -89,6 +90,10 @@ std::string pad(const unsigned int i, const char c = '0', const unsigned int l =
 	return os.str();
 }
 
+float round(float r) {
+	return (r > 0.0) ? floor(r + 0.5) : ceil(r - 0.5);
+}
+
 int main(int argc, char **argv)
 {
 	log4cxx::BasicConfigurator::configure(
@@ -156,6 +161,7 @@ int main(int argc, char **argv)
 		LOG4CXX_INFO(logger, "Loading training classes");
 
 		ClassificationDataset trainingDataset;
+		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannTrainingDatasets;
 
 		try {
 			if(cli_parser.get_ann_images().empty()) {
@@ -186,16 +192,22 @@ int main(int argc, char **argv)
 					trainingDataset.load_image(ann_images[i], training_classes);
 				}
 			}
+
+			fannTrainingDatasets = trainingDataset.build_fann_binary_sets();
+
 		} catch (ClassificationDatasetException & ex) {
 			LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 			exit(-1);
 		}
 
-		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannTrainingDatasets = trainingDataset.build_fann_binary_sets();
-		// TODO Supprimer le training-set temporaire
+		/*
+		 * Shuffling the training datasets.
+		 */
+		for(int i = 0; i < fannTrainingDatasets->size(); ++i)
+			fann_shuffle_train_data(fannTrainingDatasets->operator[](i).get());
+
 
 		LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
 
 
 
@@ -203,12 +215,16 @@ int main(int argc, char **argv)
 		 * Loading the validation classes.
 		 */
 		last_timestamp = get_timestamp();
-		ClassificationDataset validationDataset;
-		validationDataset.init(trainingDataset.getNumberOfClasses());
 		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannValidationDatasets;
 
 		if(cli_parser.get_ann_validation_images().size() > 0) {
-			LOG4CXX_INFO(logger, "Loading training classes");
+			/*
+			 * From images.
+			 */
+			LOG4CXX_INFO(logger, "Loading validation classes");
+
+			ClassificationDataset validationDataset;
+			validationDataset.init(trainingDataset.getNumberOfClasses());
 
 			try {
 				std::vector< std::string > ann_validation_images         = cli_parser.get_ann_validation_images(),
@@ -224,22 +240,40 @@ int main(int argc, char **argv)
 					validationDataset.load_image(ann_validation_images[i], validation_classes);
 
 					if((0 == i) && (validationDataset.getDataLength() != trainingDataset.getDataLength())) {
-						LOG4CXX_FATAL(logger, "The validation set dot not have the same number of components per pixel than the training set.");
+						LOG4CXX_FATAL(logger, "The validation set do not have the same number of components per pixel than the training set.");
 						exit(-1);
 					}
 				}
+
+				fannValidationDatasets = validationDataset.build_fann_binary_sets();
+
 			} catch (ClassificationDatasetException & ex) {
 				LOG4CXX_FATAL(logger, "Unable to load the validation classes: " << ex.what());
 				exit(-1);
 			}
+		} else if(cli_parser.get_ann_validation_training_ratio() > 0) {
+			/*
+			 * From the training set.
+			 */
+			fannValidationDatasets.reset(new ClassificationDataset::FannDatasetVector(fannTrainingDatasets->size()));
 
-			fannValidationDatasets = validationDataset.build_fann_binary_sets();
+			for(ClassificationDataset::FannDatasetVector::iterator it = fannTrainingDatasets->begin(); it < fannTrainingDatasets->end(); ++it) {
+				const unsigned int training_set_size = fann_length_train_data(it->get()),
+				                   cut               = round( training_set_size * cli_parser.get_ann_validation_training_ratio() / 100.0f ),
+				                   validation_size   = training_set_size - cut;
+
+				if((0 == cut) || (0 == validation_size)) {
+					LOG4CXX_FATAL(logger, "The ratio used to generate the validation-set from the training-set ends up generating an empty validation-set.");
+					exit(-1);
+				}
+
+				it->reset(fann_subset_train_data(it->get(), 0, cut), fann_destroy_train);
+
+				fannValidationDatasets->push_back(boost::shared_ptr< ClassificationDataset::FannDataset >(fann_subset_train_data(it->get(), cut, validation_size), fann_destroy_train));
+			}
 		}
 
-		// TODO Supprimer le validation-set temporaire
-
 		LOG4CXX_INFO(logger, "Validation classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
 
 
 

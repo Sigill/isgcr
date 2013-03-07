@@ -48,6 +48,12 @@ public:
 	Double(const double v) : NumericTypeWrapper< double >(v) {}
 };
 
+class Percentage : public NumericTypeWrapper<float> {
+public:
+	Percentage() : NumericTypeWrapper< float >() {}
+	Percentage(const float v) : NumericTypeWrapper< float >(v) {}
+};
+
 /*
 class StrictlyPositiveInteger {
 public :
@@ -117,6 +123,7 @@ public:
 	const float                       get_ann_mse_target() const;
 	const std::vector< std::string >  get_ann_validation_images() const;
 	const std::vector< std::string >  get_ann_validation_images_classes() const;
+	const float                       get_ann_validation_training_ratio() const;
 
 private:
 	typedef std::vector< StrictlyPositiveInteger > HiddenLayerVector;
@@ -140,9 +147,10 @@ private:
 	Float                       ann_mse_target;
 	std::vector< std::string >  ann_validation_images;
 	std::vector< std::string >  ann_validation_images_classes;
+	Percentage                  ann_validation_training_ratio;
 
-	void check_ann_parameters();
-	void check_regularization_parameters();
+	void check_ann_parameters(po::variables_map &vm);
+	void check_regularization_parameters(po::variables_map &vm);
 
 	void print_ann_parameters();
 	void print_regularization_parameters();

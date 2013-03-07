@@ -67,14 +67,29 @@ void validate(boost::any& v, const std::vector<std::string>& values, Double*, in
 	}
 }
 
+void validate(boost::any& v, const std::vector<std::string>& values, Percentage*, int)
+{
+	po::validators::check_first_occurrence(v);
+	const std::string& s = po::validators::get_single_string(values);
+
+	float value;
+	if( ParseUtils::ParseFloat(value, s.data()) && (value >= 0) && (value <= 100) )
+	{
+		v = boost::any(Percentage(value));
+	} else {
+		throw po::invalid_option_value(s);
+	}
+}
+
 template< typename TElemType >
 std::ostream &operator<<(std::ostream &s, const std::vector< TElemType >& v)
 {
 	std::stringstream ss;
+
 	if( !v.empty() )
 	{
-
 		typename std::vector< TElemType >::const_iterator it = v.begin(), begin = v.begin(), end = v.end();
+
 		for( ; it < end; ++it )
 		{
 			if(it != begin)
@@ -139,16 +154,19 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 			"Learning rate of the neural networks.")
 		("ann-max-epoch",
 			po::value< StrictlyPositiveInteger >(&(this->ann_max_epoch))->default_value(1000),
-			"Maximum number of learning iterations for the neural networks.")
+			"Maximum number of training iterations for the neural networks.")
 		("ann-mse-target",
 			po::value< Float >(&(this->ann_mse_target))->default_value(0.0001),
-			"Mean squared error targeted by the neural networks learning algorithm.")
+			"Mean squared error targeted by the neural networks training algorithm.")
 		("ann-validation-image",
 			po::value< std::vector< std::string > >(&(this->ann_validation_images))->multitoken(),
 			"The images to use to validate the training of the neural network (use --ann-validation-image-class to define associated classes). Multiple images can be specified. They mush have the same number of components per pixels than the images on which the neural network is trained.")
 		("ann-validation-image-class",
 			po::value< std::vector< std::string > >(&(this->ann_validation_images_classes))->multitoken(),
 			"Defines the classes of the images used to validate de training of the neural network. If multiple images are used, they must have as much classes as the images on which the neural network is trained.")
+		("ann-build-validation-from-training",
+			po::value< Float_0_100 >(&(this->ann_validation_training_ratio))->default_value(0.0f),
+			"The percentage of elements from the training-set to extract to build the validation-set.")
 		;
 
 	po::variables_map vm;
@@ -171,10 +189,10 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 
 	this->debug = vm.count("debug");
 
-	check_ann_parameters();
+	check_ann_parameters(vm);
 
 	if( !this->input_image.empty() ) {
-		check_regularization_parameters();
+		check_regularization_parameters(vm);
 	} else {
 		if(this->ann_config_dir.empty()) {
 			throw CliException("The directory where to save the neural networks configuration is not specified.");
@@ -268,8 +286,11 @@ const std::vector<std::string> CliParser::get_ann_validation_images_classes() co
 	return this->ann_validation_images_classes;
 }
 
+const float CliParser::get_ann_validation_training_ratio() const {
+	return this->ann_validation_training_ratio;
+}
 
-void CliParser::check_ann_parameters() {
+void CliParser::check_ann_parameters(po::variables_map &vm) {
 	if(this->ann_images_classes.empty()) {
 		/*
 		 * If no class is specified, the neural network
@@ -317,6 +338,10 @@ void CliParser::check_ann_parameters() {
 		}
 
 		if(!this->ann_validation_images.empty()) {
+			if(vm.count("ann-build-validation-from-training")) {
+				throw CliException("You can't use the --ann-build-validation-from-training option when you specify the classes for the validation-set.");
+			}
+
 			const int number_of_validation_images = this->ann_validation_images.size(),
 			          number_of_validation_classes = this->ann_validation_images_classes.size(),
 			          number_of_classes_per_validation_image = number_of_validation_classes / number_of_validation_images;
@@ -331,7 +356,7 @@ void CliParser::check_ann_parameters() {
 	}
 }
 
-void CliParser::check_regularization_parameters() {
+void CliParser::check_regularization_parameters(po::variables_map &vm) {
 	if(this->export_dir.empty())
 		throw CliException("You need to privide an export directory.");
 }
