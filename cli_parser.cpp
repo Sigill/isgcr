@@ -73,7 +73,7 @@ void validate(boost::any& v, const std::vector<std::string>& values, Percentage*
 	const std::string& s = po::validators::get_single_string(values);
 
 	float value;
-	if( ParseUtils::ParseFloat(value, s.data()) && (value >= 0) && (value <= 100) )
+	if( ParseUtils::ParseFloat(value, s.data()) && (value >= 0.0f) && (value <= 1.0f) )
 	{
 		v = boost::any(Percentage(value));
 	} else {
@@ -165,7 +165,7 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 			po::value< std::vector< std::string > >(&(this->ann_validation_images_classes))->multitoken(),
 			"Defines the classes of the images used to validate de training of the neural network. If multiple images are used, they must have as much classes as the images on which the neural network is trained.")
 		("ann-build-validation-from-training",
-			po::value< Float_0_100 >(&(this->ann_validation_training_ratio))->default_value(0.0f),
+			po::value< Percentage >(&(this->ann_validation_training_ratio)),
 			"The percentage of elements from the training-set to extract to build the validation-set.")
 		;
 

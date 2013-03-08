@@ -8,7 +8,7 @@
 #include <vector>
 #include <string>
 
-#include "ClassificationDataset.h"
+#include "FannClassificationDataset.h"
 
 class NeuralNetworkPixelClassifiers
 {
@@ -18,10 +18,10 @@ public:
 
 	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
 	void train_neural_networks(
-		boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets,
+		FannClassificationDataset *training_sets,
 		const unsigned int max_epoch,
 		const float mse_target,
-		boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > validation_sets );
+		FannClassificationDataset *validation_sets );
 
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 

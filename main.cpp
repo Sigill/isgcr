@@ -11,6 +11,7 @@
 #include "cli_parser.h"
 #include "image_loader.h"
 #include "ClassificationDataset.h"
+#include "FannClassificationDataset.h"
 #include "NeuralNetworkPixelClassifiers.h"
 
 #include "doublefann.h"
@@ -90,10 +91,6 @@ std::string pad(const unsigned int i, const char c = '0', const unsigned int l =
 	return os.str();
 }
 
-float round(float r) {
-	return (r > 0.0) ? floor(r + 0.5) : ceil(r - 0.5);
-}
-
 int main(int argc, char **argv)
 {
 	log4cxx::BasicConfigurator::configure(
@@ -160,10 +157,11 @@ int main(int argc, char **argv)
 		last_timestamp = get_timestamp();
 		LOG4CXX_INFO(logger, "Loading training classes");
 
-		ClassificationDataset trainingDataset;
-		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannTrainingDatasets;
+		boost::shared_ptr< FannClassificationDataset > fannTrainingDatasets;
 
 		try {
+			boost::shared_ptr< ClassificationDataset > trainingDataset;
+
 			if(cli_parser.get_ann_images().empty()) {
 				/*
 				 * No image provided for training the classifier, so we
@@ -171,40 +169,24 @@ int main(int argc, char **argv)
 				 */
 				LOG4CXX_INFO(logger, "Loading training classes from input image");
 
-				trainingDataset.init(cli_parser.get_ann_images_classes().size());
-				trainingDataset.load_image(input_image, cli_parser.get_ann_images_classes());
+				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(input_image, cli_parser.get_ann_images_classes()));
 			} else {
 				/*
 				 * A list of image is available to train the classifier.
 				 */
-				std::vector< std::string > ann_images         = cli_parser.get_ann_images(),
-				                           ann_images_classes = cli_parser.get_ann_images_classes();
+				LOG4CXX_INFO(logger, "Loading training classes from a list of images");
 
-				int number_of_classes = ann_images_classes.size() / ann_images.size();
-
-				trainingDataset.init(number_of_classes);
-
-				for(int i = 0; i < ann_images.size(); ++i) {
-					LOG4CXX_INFO(logger, "Loading training image #" << i << " from " << ann_images[i]);
-
-					std::vector< std::string > training_classes(ann_images_classes.begin() + i * number_of_classes, ann_images_classes.begin() + (i+1) * number_of_classes);
-
-					trainingDataset.load_image(ann_images[i], training_classes);
-				}
+				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(cli_parser.get_ann_images(), cli_parser.get_ann_images_classes()));
 			}
 
-			fannTrainingDatasets = trainingDataset.build_fann_binary_sets();
+			fannTrainingDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(*trainingDataset));
+
+			fannTrainingDatasets->shuffle();
 
 		} catch (ClassificationDatasetException & ex) {
 			LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 			exit(-1);
 		}
-
-		/*
-		 * Shuffling the training datasets.
-		 */
-		for(int i = 0; i < fannTrainingDatasets->size(); ++i)
-			fann_shuffle_train_data(fannTrainingDatasets->operator[](i).get());
 
 
 		LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
@@ -215,37 +197,23 @@ int main(int argc, char **argv)
 		 * Loading the validation classes.
 		 */
 		last_timestamp = get_timestamp();
-		boost::shared_ptr< ClassificationDataset::FannDatasetVector > fannValidationDatasets;
+		boost::shared_ptr< FannClassificationDataset > fannValidationDatasets;
 
 		if(cli_parser.get_ann_validation_images().size() > 0) {
-			/*
-			 * From images.
-			 */
-			LOG4CXX_INFO(logger, "Loading validation classes");
-
-			ClassificationDataset validationDataset;
-			validationDataset.init(trainingDataset.getNumberOfClasses());
-
 			try {
-				std::vector< std::string > ann_validation_images         = cli_parser.get_ann_validation_images(),
-				                           ann_validation_images_classes = cli_parser.get_ann_validation_images_classes();
+				/*
+				 * A list of image is available to build the validation-set.
+				 */
+				LOG4CXX_INFO(logger, "Loading validation-classes from a list of images");
 
-				for(int i = 0; i < ann_validation_images.size(); ++i) {
-					LOG4CXX_INFO(logger, "Loading validation image #" << i << " from " << ann_validation_images[i]);
+				ClassificationDataset validationDataset(cli_parser.get_ann_validation_images(), cli_parser.get_ann_validation_images_classes());
 
-					std::vector< std::string > validation_classes(
-						ann_validation_images_classes.begin() + i * trainingDataset.getNumberOfClasses(),
-						ann_validation_images_classes.begin() + (i+1) * trainingDataset.getNumberOfClasses());
-
-					validationDataset.load_image(ann_validation_images[i], validation_classes);
-
-					if((0 == i) && (validationDataset.getDataLength() != trainingDataset.getDataLength())) {
-						LOG4CXX_FATAL(logger, "The validation set do not have the same number of components per pixel than the training set.");
-						exit(-1);
-					}
+				if(validationDataset.getDataLength() != fannTrainingDatasets->getFeaturesLength()) {
+					LOG4CXX_FATAL(logger, "The validation set do not have the same number of components per pixel than the training set.");
+					exit(-1);
 				}
 
-				fannValidationDatasets = validationDataset.build_fann_binary_sets();
+				fannValidationDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(validationDataset));
 
 			} catch (ClassificationDatasetException & ex) {
 				LOG4CXX_FATAL(logger, "Unable to load the validation classes: " << ex.what());
@@ -255,26 +223,22 @@ int main(int argc, char **argv)
 			/*
 			 * From the training set.
 			 */
-			fannValidationDatasets.reset(new ClassificationDataset::FannDatasetVector(fannTrainingDatasets->size()));
+			LOG4CXX_INFO(logger, "Generating the validation-set from the training-set with a ratio of " << cli_parser.get_ann_validation_training_ratio());
 
-			for(ClassificationDataset::FannDatasetVector::iterator it = fannTrainingDatasets->begin(); it < fannTrainingDatasets->end(); ++it) {
-				const unsigned int training_set_size = fann_length_train_data(it->get()),
-				                   cut               = round( training_set_size * cli_parser.get_ann_validation_training_ratio() / 100.0f ),
-				                   validation_size   = training_set_size - cut;
+			try {
+				std::pair< boost::shared_ptr< FannClassificationDataset >, boost::shared_ptr< FannClassificationDataset > > new_sets =
+					fannTrainingDatasets->split(cli_parser.get_ann_validation_training_ratio());
 
-				if((0 == cut) || (0 == validation_size)) {
-					LOG4CXX_FATAL(logger, "The ratio used to generate the validation-set from the training-set ends up generating an empty validation-set.");
-					exit(-1);
-				}
+				fannTrainingDatasets = new_sets.first;
+				fannValidationDatasets = new_sets.second;
 
-				it->reset(fann_subset_train_data(it->get(), 0, cut), fann_destroy_train);
-
-				fannValidationDatasets->push_back(boost::shared_ptr< ClassificationDataset::FannDataset >(fann_subset_train_data(it->get(), cut, validation_size), fann_destroy_train));
+			} catch (FannClassificationDatasetException &ex) {
+				LOG4CXX_FATAL(logger, "Cannot generate validation-set from training-set: " << ex.what());
+				exit(-1);
 			}
 		}
 
 		LOG4CXX_INFO(logger, "Validation classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
 
 
 		/*
@@ -286,12 +250,11 @@ int main(int argc, char **argv)
 		{
 			std::vector< unsigned int > ann_layers = cli_parser.get_ann_hidden_layers();
 
-			ann_layers.insert(ann_layers.begin(), trainingDataset.getDataLength()); // First layer: number of features
+			ann_layers.insert(ann_layers.begin(), fannTrainingDatasets->getFeaturesLength()); // First layer: number of features
 			ann_layers.push_back(1); // Last layer: one output
 
-			const int numberOfClasses = fannTrainingDatasets->size();
-			pixelClassifiers.create_neural_networks((numberOfClasses == 2 ? 1 : numberOfClasses), ann_layers, cli_parser.get_ann_learning_rate());
-			pixelClassifiers.train_neural_networks(fannTrainingDatasets, cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target(), fannValidationDatasets);
+			pixelClassifiers.create_neural_networks(fannTrainingDatasets->getNumberOfDatasets(), ann_layers, cli_parser.get_ann_learning_rate());
+			pixelClassifiers.train_neural_networks(fannTrainingDatasets.get(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target(), fannValidationDatasets.get());
 		}
 		// TODO Supprimer le training set et le validation-set
 

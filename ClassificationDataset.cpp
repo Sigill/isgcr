@@ -10,6 +10,33 @@ void ClassificationDataset::init(const int number_of_classes)
 	m_DataLength = 0;
 }
 
+ClassificationDataset::ClassificationDataset(typename FeaturesImage::Pointer image, const std::vector< std::string > &class_filenames)
+{
+	init(class_filenames.size());
+
+	load_image(image, class_filenames);
+}
+
+ClassificationDataset::ClassificationDataset(const std::vector< std::string > &images_filenames, const std::vector< std::string > &classes_filenames)
+{
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+
+	const int number_of_classes = classes_filenames.size() / images_filenames.size();
+
+	init(number_of_classes);
+
+	for(int i = 0; i < images_filenames.size(); ++i) {
+		LOG4CXX_INFO(logger, "Loading image #" << i << " from " << images_filenames[i]);
+
+		std::vector< std::string > training_classes(
+			classes_filenames.begin() + i * number_of_classes,
+			classes_filenames.begin() + (i+1) * number_of_classes
+		);
+
+		load_image(images_filenames[i], training_classes);
+	}
+}
+
 void ClassificationDataset::load_image(const std::string image_filename, const std::vector< std::string > class_filenames)
 {
 	typename itk::ImageFileReader< FeaturesImage >::Pointer reader = itk::ImageFileReader< FeaturesImage >::New();
@@ -83,79 +110,17 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 	}
 }
 
-boost::shared_ptr< ClassificationDataset::FannDatasetVector >
-ClassificationDataset::build_fann_binary_sets()
+const ClassificationDataset::Class& ClassificationDataset::getClass(const int c)
 {
-	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+	return m_Classes[c];
+}
 
-	unsigned int total_number_of_elements = 0;
-	{
-		for(int i = 0; i < m_NumberOfClasses; ++i)
-		{
-			if(m_Classes[i].empty()) {
-				std::stringstream err;
-				err << "The class #" << i << " is empty.";
-					throw ClassificationDatasetException(err.str());
-			}
+int ClassificationDataset::getNumberOfClasses() const
+{
+	return m_NumberOfClasses;
+}
 
-			total_number_of_elements += m_Classes[i].size();
-
-			LOG4CXX_DEBUG(logger, "Class #" << i << ": " << m_Classes[i].size() << " elements");
-		}
-	}
-
-	// Creating one data set that will be used to initialized the others
-	FannDataset *training_data = fann_create_train(total_number_of_elements, m_DataLength, 1);
-	fann_type **training_data_input_it = training_data->input;
-	fann_type **training_data_output_it = training_data->output;
-
-	for(int i = 0; i < m_NumberOfClasses; ++i)
-	{
-		Class &current_class = m_Classes[i];
-
-		Class::const_iterator current_raw_class_it = current_class.begin(), current_raw_class_end = current_class.end();
-
-		while(current_raw_class_it != current_raw_class_end)
-		{
-			// Copying the features
-			std::copy(
-					current_raw_class_it->begin(),
-					current_raw_class_it->end(), 
-					*training_data_input_it
-					);
-
-			// Don't care about the output right now
-			**training_data_output_it = 0;
-
-			++current_raw_class_it;
-			++training_data_input_it;
-			++training_data_output_it;
-		}
-	}
-
-	boost::shared_ptr< FannDatasetVector > fannDatasets(new FannDatasetVector);
-
-	// Storing the first one
-	fannDatasets->push_back( boost::shared_ptr< FannDataset >( training_data, fann_destroy_train ) );
-
-	const int numberOfClassifiers = (m_NumberOfClasses == 2 ? 1 : m_NumberOfClasses);
-
-	// Storing copies of the first one
-	for(int i = 1; i < numberOfClassifiers; ++i) {
-		fannDatasets->push_back( boost::shared_ptr< FannDataset >( fann_duplicate_train_data(training_data), fann_destroy_train ) );
-	}
-
-	// Set the desired output of a class to 1 in the dataset representing this class
-	int class_start = 0, current_class_size;
-	for(int i = 0; i < numberOfClassifiers; ++i) {
-		current_class_size = m_Classes[i].size();
-
-		fann_type *output_start = *(fannDatasets->operator[](i)->output) + class_start;
-
-		std::fill(output_start, output_start + current_class_size, 1);
-
-		class_start += current_class_size;
-	}
-
-	return fannDatasets;
+int ClassificationDataset::getDataLength() const
+{
+	return m_DataLength;
 }

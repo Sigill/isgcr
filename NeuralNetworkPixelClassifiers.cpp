@@ -38,10 +38,10 @@ void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, con
 }
 
 void NeuralNetworkPixelClassifiers::train_neural_networks(
-	boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > training_sets,
+	FannClassificationDataset *training_sets,
 	const unsigned int max_epoch,
 	const float mse_target,
-	boost::shared_ptr< typename ClassificationDataset::FannDatasetVector > validation_sets )
+	FannClassificationDataset *validation_sets )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
@@ -53,22 +53,22 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 		LOG4CXX_INFO(logger, "Training ann #" << i);
 
 		NeuralNetwork *current_neural_network = m_NeuralNetworks[i].get();
-		boost::shared_ptr< ClassificationDataset::FannDataset> current_training_set = training_sets->operator[](i);
+		FannClassificationDataset::FannDataset *current_training_set = training_sets->getSet(i);
 
-		if(validation_sets.get() == NULL)
+		if(validation_sets == NULL)
 		{
-			fann_train_on_data(current_neural_network, current_training_set.get(), max_epoch, 0, mse_target);
+			fann_train_on_data(current_neural_network, current_training_set, max_epoch, 0, mse_target);
 		} else {
-			boost::shared_ptr< ClassificationDataset::FannDataset> current_validation_set = validation_sets->operator[](i);
+			FannClassificationDataset::FannDataset *current_validation_set = validation_sets->getSet(i);
 
 			for(int j = 0; j < max_epoch; ++j) {
-				float train_mse      = fann_train_epoch( current_neural_network, current_training_set.get()  ),
-				      validation_mse = fann_test_data(  current_neural_network, current_validation_set.get() );
+				float train_mse      = fann_train_epoch( current_neural_network, current_training_set  ),
+				      validation_mse = fann_test_data(   current_neural_network, current_validation_set );
 
 				LOG4CXX_INFO(logger, "MSE for ann #" << i << "; " << j << "; " << train_mse << "; " << validation_mse);
 			}
 
-			fann_test_data(current_neural_network, current_training_set.get());
+			fann_test_data(current_neural_network, current_training_set);
 		}
 
 		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network));
