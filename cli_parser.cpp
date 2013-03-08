@@ -290,6 +290,23 @@ const float CliParser::get_ann_validation_training_ratio() const {
 	return this->ann_validation_training_ratio;
 }
 
+/*
+ * If there is no image classes, the classifier must be loaded from a stored configuration (no training will be performed):
+ *     Throw an exception if no directory for the sorted configuration is provided.
+ * Otherwise, (we need to find everything to train the classifiers):
+ *     If there is no training image provided, we will use the input-image that will be processed.
+ *         Throw an exception if there is no input-image.
+ *         Set the number of images and classes.
+ *     Otherwise, (at least one training-image is provided):
+ *         Throw an exception if the number of training-image is not coherent with the number of classes
+ *         (there must be at least two classes per image, and the total number of image-classes must
+ *         be a multiple of the number of training-images).
+ *
+ *     If there is at least one validation-image provided:
+ *         Throw an exception if there is an option asking to build the validation-set from the training-set.
+ *         Throw an exception if the number of validation-classes is not coherent with the number of
+ *         validation-images or if the number of validation classes is different from tne number of training-classes.
+ */
 void CliParser::check_ann_parameters(po::variables_map &vm) {
 	if(this->ann_images_classes.empty()) {
 		/*
@@ -298,7 +315,7 @@ void CliParser::check_ann_parameters(po::variables_map &vm) {
 		 */
 		if(this->ann_config_dir.empty()) {
 			throw CliException("You must either load the neural network from a stored configuration or specify"
-			                   "the image(s) and classes to use for training.");
+			                   " the image(s) and classes to use for training.");
 		}
 	} else {
 		/*
@@ -358,7 +375,7 @@ void CliParser::check_ann_parameters(po::variables_map &vm) {
 
 void CliParser::check_regularization_parameters(po::variables_map &vm) {
 	if(this->export_dir.empty())
-		throw CliException("You need to privide an export directory.");
+		throw CliException("You need to provide an export directory.");
 }
 
 void CliParser::print_ann_parameters() {
