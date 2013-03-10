@@ -11,8 +11,10 @@
 #include <string>
 #include <stdexcept>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <algorithm>
+#include <utility>
 
 struct _StringComparator {
 	  bool operator() (const std::string a, const std::string b) { return a.compare(b);}
@@ -37,6 +39,11 @@ void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, con
 	}
 }
 
+bool score_comparator(std::pair< float, float> & a, std::pair< float, float> & b)
+{
+	return a.second < b.second;
+}
+
 void NeuralNetworkPixelClassifiers::train_neural_networks(
 	FannClassificationDataset const *training_sets,
 	const unsigned int max_epoch,
@@ -47,31 +54,55 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 
 	// XXX We say that validation_sets is either empty or contains non-empty fann_train_data...
 
+	m_TrainingScoresHistory.clear();
+
+	if(validation_sets != NULL) {
+		m_TrainingScoresHistory.reserve(m_NumberOfClassifiers);
+		for(int i = 0; i < m_NumberOfClassifiers; ++i)
+			m_TrainingScoresHistory.push_back(std::vector< std::pair< float, float > >());
+	}
+
 	#pragma omp parallel for
 	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
 		LOG4CXX_INFO(logger, "Training ann #" << i);
 
-		NeuralNetwork *current_neural_network = m_NeuralNetworks[i].get();
+		boost::shared_ptr< NeuralNetwork > current_neural_network = m_NeuralNetworks[i];
 		FannClassificationDataset::FannDataset *current_training_set = training_sets->getSet(i);
 
 		if(validation_sets == NULL)
 		{
-			fann_train_on_data(current_neural_network, current_training_set, max_epoch, 0, mse_target);
+			fann_train_on_data(current_neural_network.get(), current_training_set, max_epoch, 0, mse_target);
 		} else {
 			FannClassificationDataset::FannDataset *current_validation_set = validation_sets->getSet(i);
 
+			std::vector< boost::shared_ptr< NeuralNetwork > > trainingHistory;
+			trainingHistory.reserve(max_epoch);
+
 			for(int j = 0; j < max_epoch; ++j) {
-				float train_mse      = fann_train_epoch( current_neural_network, current_training_set  ),
-				      validation_mse = fann_test_data(   current_neural_network, current_validation_set );
+				float train_mse      = fann_train_epoch( current_neural_network.get(), current_training_set  ),
+				      validation_mse = fann_test_data(   current_neural_network.get(), current_validation_set );
+
+				trainingHistory.push_back( boost::shared_ptr< NeuralNetwork >( fann_copy(current_neural_network.get()), fann_destroy ) );
+
+				m_TrainingScoresHistory[i].push_back(std::make_pair(train_mse, validation_mse));
 
 				LOG4CXX_INFO(logger, "MSE for ann #" << i << "; " << j << "; " << train_mse << "; " << validation_mse);
 			}
 
-			fann_test_data(current_neural_network, current_training_set);
+			const int best_neural_network_index = std::distance(
+					m_TrainingScoresHistory[i].begin(),
+					std::min_element(m_TrainingScoresHistory[i].begin(), m_TrainingScoresHistory[i].end(), score_comparator)
+				);
+
+			LOG4CXX_INFO(logger, "Best neural network for dataset #" << i << " obtained at training-iteration #" << best_neural_network_index << ": MSE=" << m_TrainingScoresHistory[i][best_neural_network_index].second);
+
+			m_NeuralNetworks[i] = boost::shared_ptr< NeuralNetwork >(trainingHistory[best_neural_network_index]);
+
+			fann_test_data(m_NeuralNetworks[i].get(), current_validation_set);
 		}
 
-		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(current_neural_network));
+		LOG4CXX_INFO(logger, "MSE for ann #" << i << ": " << fann_get_MSE(m_NeuralNetworks[i].get()));
 	}
 }
 
@@ -94,7 +125,28 @@ void NeuralNetworkPixelClassifiers::save_neural_networks(const std::string dir)
 		boost::filesystem::path path = boost::filesystem::path(dir) / filename.str();
 
 		if(0 != fann_save(m_NeuralNetworks[i].get(), path.native().c_str())) {
-			throw std::runtime_error("Cannot save neural network in " + path.native());
+			throw std::runtime_error("Cannot save the neural-network in " + path.native());
+		}
+
+		if(!m_TrainingScoresHistory.empty()) {
+			std::ostringstream filename;
+			filename << std::setfill('0') << std::setw(6) << (i+1) << "-training-scores.dat";
+
+			boost::filesystem::path path = boost::filesystem::path(dir) / filename.str();
+
+			std::ofstream score_file;
+			score_file.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+			score_file.open(path.native().c_str(), std::ios::out | std::ios::trunc); // This will erase the content of the file
+
+			try {
+				for(std::vector< std::pair< float, float > >::const_iterator it = m_TrainingScoresHistory[i].begin(); it != m_TrainingScoresHistory[i].end(); ++it) {
+					score_file << it->first << "\t" << it->second << std::endl;
+				}
+
+				score_file.close();
+			} catch(std::ifstream::failure &e) {
+				throw std::runtime_error("Cannot save the neural-network training-scores file in " + path.native() + " (" + e.what() + ")");
+			}
 		}
 	}
 }
@@ -103,6 +155,8 @@ void NeuralNetworkPixelClassifiers::load_neural_networks(const std::string dir)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 	LOG4CXX_INFO(logger, "Loading neural networks from " << dir);
+
+	m_TrainingScoresHistory.clear();
 
 	const boost::regex config_file_filter( "\\d{6,6}.ann" );
 	std::vector< std::string > config_files;

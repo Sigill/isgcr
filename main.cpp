@@ -268,12 +268,6 @@ int main(int argc, char **argv)
 
 			try {
 				get_empty_directory(ann_config_dir);
-			} catch (EmptyDirException &err) {
-				LOG4CXX_FATAL(logger, err.what());
-				exit(-1);
-			}
-
-			try {
 				pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
 			} catch (std::runtime_error &err) {
 				LOG4CXX_FATAL(logger, err.what());

@@ -10,6 +10,10 @@
 
 #include "FannClassificationDataset.h"
 
+namespace std {
+	template <class T1, class T2> struct pair;
+}
+
 class NeuralNetworkPixelClassifiers
 {
 public:
@@ -35,6 +39,7 @@ private:
 	unsigned int m_NumberOfClassifiers;
 	unsigned int m_NumberOfComponentsPerPixel;
 	NeuralNetworkVector m_NeuralNetworks;
+	std::vector< std::vector< std::pair< float, float > > > m_TrainingScoresHistory;
 };
 
 #endif /* NEURALNETWORKPIXELCLASSIFIERS_H */
