@@ -18,10 +18,10 @@ public:
 
 	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
 	void train_neural_networks(
-		FannClassificationDataset *training_sets,
+		FannClassificationDataset const *training_sets,
 		const unsigned int max_epoch,
 		const float mse_target,
-		FannClassificationDataset *validation_sets );
+		FannClassificationDataset const *validation_sets );
 
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 

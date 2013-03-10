@@ -38,10 +38,10 @@ void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, con
 }
 
 void NeuralNetworkPixelClassifiers::train_neural_networks(
-	FannClassificationDataset *training_sets,
+	FannClassificationDataset const *training_sets,
 	const unsigned int max_epoch,
 	const float mse_target,
-	FannClassificationDataset *validation_sets )
+	FannClassificationDataset const *validation_sets )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
