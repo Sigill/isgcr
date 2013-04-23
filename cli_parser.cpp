@@ -165,7 +165,7 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 			po::value< std::vector< std::string > >(&(this->ann_validation_images_classes))->multitoken(),
 			"Defines the classes of the images used to validate de training of the neural network. If multiple images are used, they must have as much classes as the images on which the neural network is trained.")
 		("ann-build-validation-from-training",
-			po::value< Percentage >(&(this->ann_validation_training_ratio)),
+			po::value< Percentage >(&(this->ann_validation_training_ratio))->default_value(Percentage(0.0f)),
 			"The percentage of elements from the training-set to extract to build the validation-set.")
 		;
 

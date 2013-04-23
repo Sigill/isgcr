@@ -62,26 +62,36 @@ std::vector<size_t> ordered(std::vector<T> const& values, desc_comparator<T> com
 	return indices;
 }
 
-class EmptyDirException : public std::runtime_error
+class DirException : public std::runtime_error
 {
 private:
-	EmptyDirException ( const std::string &err ) : std::runtime_error (err) {}
+	DirException ( const std::string &err ) : std::runtime_error (err) {}
 public:
-	static EmptyDirException NotEmpty(const bfs::path &path) {     return EmptyDirException(path.native() + " " + "is not empty."); }
-	static EmptyDirException File(const bfs::path &path) {         return EmptyDirException(path.native() + " " + "is a file."); }
-	static EmptyDirException CannotCreate(const bfs::path &path) { return EmptyDirException(path.native() + " " + "cannot be created."); }
+	static DirException NotEmpty(const bfs::path &path) {     return DirException(path.native() + " " + "is not empty."); }
+	static DirException File(const bfs::path &path) {         return DirException(path.native() + " " + "is a file."); }
+	static DirException CannotCreate(const bfs::path &path) { return DirException(path.native() + " " + "cannot be created."); }
 };
 
 void get_empty_directory(const bfs::path &path) {
 	if(bfs::exists(path)) {
 		if(bfs::is_directory(path)) {
 			if(!bfs::is_empty(path))
-				throw EmptyDirException::NotEmpty(path);
+				throw DirException::NotEmpty(path);
 		} else
-			throw EmptyDirException::File(path);
+			throw DirException::File(path);
 	} else {
 		if(!bfs::create_directories(path))
-			throw EmptyDirException::CannotCreate(path);
+			throw DirException::CannotCreate(path);
+	}
+}
+
+void get_directory(const bfs::path &path) {
+	if(bfs::exists(path)) {
+		if(!bfs::is_directory(path))
+			throw DirException::File(path);
+	} else {
+		if(!bfs::create_directories(path))
+			throw DirException::CannotCreate(path);
 	}
 }
 
@@ -227,7 +237,7 @@ int main(int argc, char **argv)
 
 			try {
 				std::pair< boost::shared_ptr< FannClassificationDataset >, boost::shared_ptr< FannClassificationDataset > > new_sets =
-					fannTrainingDatasets->split(cli_parser.get_ann_validation_training_ratio());
+					fannTrainingDatasets->split(1-cli_parser.get_ann_validation_training_ratio());
 
 				fannTrainingDatasets = new_sets.first;
 				fannValidationDatasets = new_sets.second;
@@ -267,7 +277,7 @@ int main(int argc, char **argv)
 			bfs::path ann_config_dir(cli_parser.get_ann_config_dir());
 
 			try {
-				get_empty_directory(ann_config_dir);
+				get_directory(ann_config_dir);
 				pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
 			} catch (std::runtime_error &err) {
 				LOG4CXX_FATAL(logger, err.what());
@@ -297,8 +307,8 @@ int main(int argc, char **argv)
 
 	bfs::path export_dir_path(cli_parser.get_export_dir());
 	try {
-		get_empty_directory(export_dir_path);
-	} catch (EmptyDirException &err) {
+		get_directory(export_dir_path);
+	} catch (DirException &err) {
 		LOG4CXX_FATAL(logger, err.what());
 		exit(-1);
 	}
@@ -311,8 +321,8 @@ int main(int argc, char **argv)
 	if(cli_parser.get_export_interval() > 0) {
 		try {
 			for(int i = 0; i < number_of_classifiers; ++i)
-				get_empty_directory(export_dir_path / pad(i));
-		} catch (EmptyDirException &err) {
+				get_directory(export_dir_path / pad(i));
+		} catch (DirException &err) {
 			LOG4CXX_FATAL(logger, err.what());
 			exit(-1);
 		}
@@ -525,8 +535,8 @@ int main(int argc, char **argv)
 	bfs::path final_export_dir_path = export_dir_path / "final_export";
 
 	try {
-		get_empty_directory(final_export_dir_path);
-	} catch (EmptyDirException &err) {
+		get_directory(final_export_dir_path);
+	} catch (DirException &err) {
 		LOG4CXX_FATAL(logger, err.what());
 		exit(-1);
 	}
@@ -534,8 +544,8 @@ int main(int argc, char **argv)
 	{
 		bfs::path classmap_export_dir_path = final_export_dir_path / "classmap";
 		try {
-			get_empty_directory(classmap_export_dir_path);
-		} catch (EmptyDirException &err) {
+			get_directory(classmap_export_dir_path);
+		} catch (DirException &err) {
 			LOG4CXX_FATAL(logger, err.what());
 			exit(-1);
 		}
@@ -558,8 +568,8 @@ int main(int argc, char **argv)
 		bfs::path final_class_export_dir_path = final_export_dir_path / (i == 0 ? "rejected" : pad(i));
 
 		try {
-			get_empty_directory(final_class_export_dir_path);
-		} catch (EmptyDirException &err) {
+			get_directory(final_class_export_dir_path);
+		} catch (DirException &err) {
 			LOG4CXX_FATAL(logger, err.what());
 			exit(-1);
 		}
