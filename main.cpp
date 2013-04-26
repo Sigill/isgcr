@@ -328,9 +328,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
-	LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
-	tlp::initTulipLib(STRINGIFY(TULIP_DIR));
+	// Must be specified with environment variable TLP_DIR
+	tlp::initTulipLib(NULL);
 	tlp::loadPlugins(0);
 
 
