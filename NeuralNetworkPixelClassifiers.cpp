@@ -17,7 +17,7 @@
 #include <utility>
 
 struct _StringComparator {
-	  bool operator() (const std::string a, const std::string b) { return a.compare(b);}
+	  bool operator() (const std::string a, const std::string b) { return a < b;}
 } StringComparator;
 
 void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate )
