@@ -33,7 +33,20 @@ include_directories(${TULIP_INCLUDE_DIR})
 
 add_definitions(-DITK_MANUAL_INSTANTIATION)
 
-add_executable(haralick_ann_regularization main.cpp time_utils.cpp cli_parser.cpp common.cpp image_loader.cpp NeuralNetworkPixelClassifiers.cpp LoggerPluginProgress.cpp ParseUtils.cpp ClassificationDataset.cpp FannClassificationDataset.cpp templates.cpp)
+add_executable(haralick_ann_regularization
+	main.cpp
+	time_utils.cpp
+	cli_parser.cpp
+	common.cpp
+	image_loader.cpp
+	NeuralNetworkPixelClassifiers.cpp
+	LoggerPluginProgress.cpp
+	ParseUtils.cpp
+	ClassificationDataset.cpp
+	FannClassificationDataset.cpp
+	templates.cpp
+	boost_program_options_types.cpp
+	)
 set_target_properties(haralick_ann_regularization PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
 target_link_libraries(haralick_ann_regularization ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY} ${LOG4CXX_LIBRARIES})
 

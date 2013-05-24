@@ -10,6 +10,7 @@
 
 #include "FannClassificationDataset.h"
 
+// Forward declaration
 namespace std {
 	template <class T1, class T2> struct pair;
 }

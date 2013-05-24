@@ -73,12 +73,15 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 		LOG4CXX_INFO(logger, "Loading class from " << class_filenames[i]);
 
 		ImageType::Pointer class_image;
+
+		// Load the class image
 		try {
 			class_image = ImageLoader::load(class_filenames[i]);
 		} catch (ImageLoadingException & ex) {
 			throw ClassificationDatasetException(ex.what());
 		} 
 
+		// check the class image dimensions
 		if(class_image->GetLargestPossibleRegion().GetSize() != image->GetLargestPossibleRegion().GetSize()) {
 			std::stringstream err;
 			err << "The dimensions of the class image \"" << class_filenames[i] << "\" (" << class_image->GetLargestPossibleRegion().GetSize()

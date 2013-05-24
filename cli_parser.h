@@ -8,84 +8,9 @@
 
 #include <boost/regex.hpp>
 
+#include "boost_program_options_types.h"
+
 namespace po = boost::program_options;
-
-template <typename TNumericType>
-class NumericTypeWrapper
-{
-public :
-	typedef TNumericType NumericType;
-
-	NumericTypeWrapper() {}
-	NumericTypeWrapper(const NumericType v) : value(v) {}
-
-	NumericType value;
-
-	inline operator NumericType() const { return value; }
-};
-
-class StrictlyPositiveInteger : public NumericTypeWrapper<unsigned int> {
-public:
-	StrictlyPositiveInteger() : NumericTypeWrapper< unsigned int >() {}
-	StrictlyPositiveInteger(const unsigned int v) : NumericTypeWrapper< unsigned int >(v) {}
-};
-
-class PositiveInteger : public NumericTypeWrapper<unsigned int> {
-public:
-	PositiveInteger() : NumericTypeWrapper< unsigned int >() {}
-	PositiveInteger(const unsigned int v) : NumericTypeWrapper< unsigned int >(v) {}
-};
-
-class Float : public NumericTypeWrapper<float> {
-public:
-	Float() : NumericTypeWrapper< float >() {}
-	Float(const float v) : NumericTypeWrapper< float >(v) {}
-};
-
-class Double : public NumericTypeWrapper<double> {
-public:
-	Double() : NumericTypeWrapper< double >() {}
-	Double(const double v) : NumericTypeWrapper< double >(v) {}
-};
-
-class Percentage : public NumericTypeWrapper<float> {
-public:
-	Percentage() : NumericTypeWrapper< float >() {}
-	Percentage(const float v) : NumericTypeWrapper< float >(v) {}
-};
-
-/*
-class StrictlyPositiveInteger {
-public :
-	StrictlyPositiveInteger() {}
-	StrictlyPositiveInteger(const unsigned int v) : value(v) {}
-
-	unsigned int value;
-
-	inline operator unsigned int() const { return value; }
-};
-
-class PositiveInteger {
-public :
-	PositiveInteger() {}
-	PositiveInteger(const unsigned int v) : value(v) {}
-
-	unsigned int value;
-
-	inline operator unsigned int() const { return value; }
-};
-
-class Float {
-public :
-	Float() {}
-	Float(const float v) : value(v) {}
-
-	float value;
-
-	inline operator float() const { return value; }
-};
-*/
-
 
 class CliException : public std::runtime_error
 {
