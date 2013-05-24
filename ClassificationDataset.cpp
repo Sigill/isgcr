@@ -98,10 +98,7 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 			if(255 == classIterator.Get()) {
 				const typename FeaturesImage::PixelType raw_values = image->GetPixel(classIterator.GetIndex());
 
-				DataType values;
-				for(int i = 0; i < m_DataLength; ++i) {
-					values.push_back(raw_values[i]);
-				}
+				DataType values(raw_values.GetDataPointer(), raw_values.GetDataPointer() + m_DataLength);
 
 				current_class.push_back(values);
 			}
