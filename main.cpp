@@ -67,27 +67,17 @@ class DirException : public std::runtime_error
 private:
 	DirException ( const std::string &err ) : std::runtime_error (err) {}
 public:
-	static DirException NotEmpty(const bfs::path &path) {     return DirException(path.native() + " " + "is not empty."); }
-	static DirException File(const bfs::path &path) {         return DirException(path.native() + " " + "is a file."); }
-	static DirException CannotCreate(const bfs::path &path) { return DirException(path.native() + " " + "cannot be created."); }
+	static DirException NotEmpty(const bfs::path &path) {     return DirException(path.native() + " is not empty."); }
+	static DirException File(const bfs::path &path) {         return DirException(path.native() + " is a file."); }
+	static DirException CannotCreate(const bfs::path &path) { return DirException(path.native() + " cannot be created."); }
 };
 
-void get_empty_directory(const bfs::path &path) {
+void get_directory(const bfs::path &path, const bool mustBeEmpty = false) {
 	if(bfs::exists(path)) {
 		if(bfs::is_directory(path)) {
-			if(!bfs::is_empty(path))
+			if(mustBeEmpty && !bfs::is_empty(path))
 				throw DirException::NotEmpty(path);
 		} else
-			throw DirException::File(path);
-	} else {
-		if(!bfs::create_directories(path))
-			throw DirException::CannotCreate(path);
-	}
-}
-
-void get_directory(const bfs::path &path) {
-	if(bfs::exists(path)) {
-		if(!bfs::is_directory(path))
 			throw DirException::File(path);
 	} else {
 		if(!bfs::create_directories(path))
