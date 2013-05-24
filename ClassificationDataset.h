@@ -64,6 +64,7 @@ public:
 	int getDataLength() const;
 
 private:
+	/** Datatype representing a list of class. */
 	typedef std::vector< Class > ClassVector;
 
 	void init(const int number_of_classes);

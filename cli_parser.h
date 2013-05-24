@@ -27,6 +27,14 @@ public:
 	};
 
 	CliParser();
+
+	/**
+	 * Parses argv.
+	 *
+	 * \return A ParseResult if the arguments are successfully parsed.
+	 *
+	 * \throw A CliException if the arguments cannot be parsed.
+	 */
 	ParseResult parse_argv(int argc, char ** argv);
 
 	const bool get_debug() const;
