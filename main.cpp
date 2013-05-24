@@ -512,11 +512,15 @@ int main(int argc, char **argv)
 
 				std::vector< size_t > ordered_indices = ordered(values, desc_comparator<double>(values));
 
-				if( (values[ordered_indices[0]] > 0.5) && ( (0.9 * values[ordered_indices[0]]) > values[ordered_indices[1]]) ) {
+				//if( (values[ordered_indices[0]] > 0.5) && ( (0.9 * values[ordered_indices[0]]) > values[ordered_indices[1]]) ) {
+				/*
+				if( values[ordered_indices[0]] > 0.5 ) {
 					max_pos = ordered_indices[0] + 1;
 				} else {
 					max_pos = 0;
 				}
+				*/
+				max_pos = ordered_indices[0] + 1;
 			} else {
 				max_pos = (regularized_segmentations[0]->getNodeValue(u) > 0.5 ? 1 : 2); // No rejected class
 			}
