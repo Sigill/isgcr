@@ -7,7 +7,6 @@
 
 #include "log4cxx/logger.h"
 
-
 template< typename TElemType >
 std::ostream &operator<<(std::ostream &s, const std::vector< TElemType >& v)
 {
