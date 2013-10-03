@@ -8,11 +8,12 @@
 #include <vector>
 #include <string>
 
-class LearningClassException : public std::runtime_error
-{
-  public:
-      LearningClassException ( const std::string &err ) : std::runtime_error (err) {}
-};
+#include "FannClassificationDataset.h"
+
+// Forward declaration
+namespace std {
+	template <class T1, class T2> struct pair;
+}
 
 class NeuralNetworkPixelClassifiers
 {
@@ -20,27 +21,26 @@ public:
 	typedef struct fann NeuralNetwork;
 	typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
-	void load_training_sets(const std::vector< std::string > filenames, typename FeaturesImage::Pointer featuresImage);
+	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
+	void train_neural_networks(
+		FannClassificationDataset const *training_sets,
+		const unsigned int max_epoch,
+		const float mse_target,
+		FannClassificationDataset const *validation_sets );
 
-	void create_and_train_neural_networks( const std::vector< unsigned int > hidden_layers, const float learning_rate, const unsigned int max_epoch, const float mse_target );
-	
 	boost::shared_ptr< NeuralNetwork > get_neural_network(const unsigned int i);
 
-	unsigned int getNumberOfClassifiers() const { return m_NumberOfClassifiers; }
+	void save_neural_networks(const std::string dir);
+	void load_neural_networks(const std::string dir);
+
+	const unsigned int getNumberOfClassifiers() const { return m_NumberOfClassifiers; }
+	const unsigned int getNumberOfComponentsPerPixel() const { return m_NumberOfComponentsPerPixel; }
 
 private:
-	typedef struct fann_train_data TrainingSet;
-	typedef std::vector< boost::shared_ptr< TrainingSet > > TrainingSetVector;
-
-	typedef std::vector< typename FeaturesImage::PixelType > TrainingClass;
-	typedef std::vector< boost::shared_ptr< TrainingClass > > TrainingClassVector;
-
-	unsigned int m_NumberOfClasses;
 	unsigned int m_NumberOfClassifiers;
 	unsigned int m_NumberOfComponentsPerPixel;
-	TrainingSetVector m_TrainingSets;
 	NeuralNetworkVector m_NeuralNetworks;
-
+	std::vector< std::vector< std::pair< float, float > > > m_TrainingScoresHistory;
 };
 
 #endif /* NEURALNETWORKPIXELCLASSIFIERS_H */

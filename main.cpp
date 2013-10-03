@@ -3,6 +3,8 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <stdexcept>
+#include <cmath>
 
 #include <QApplication>
 
@@ -10,6 +12,8 @@
 #include "time_utils.h"
 #include "cli_parser.h"
 #include "image_loader.h"
+#include "ClassificationDataset.h"
+#include "FannClassificationDataset.h"
 #include "NeuralNetworkPixelClassifiers.h"
 
 #include "doublefann.h"
@@ -42,14 +46,16 @@
 using namespace tlp;
 using namespace std;
 
+namespace bfs = boost::filesystem;
+
 //bool desc_comparator(const T a, const T b) { return a > b; }
 template <typename T>
 class desc_comparator {
-	public:
-		desc_comparator(std::vector<T> const & values) :m_values(values) {}
-		inline bool operator() (size_t a, size_t b) { return m_values[a] > m_values[b]; }
-	private:
-		std::vector<T> const& m_values;
+public:
+	desc_comparator(std::vector<T> const & values) :m_values(values) {}
+	inline bool operator() (size_t a, size_t b) { return m_values[a] > m_values[b]; }
+private:
+	std::vector<T> const& m_values;
 };
 
 template <typename T>
@@ -61,6 +67,35 @@ std::vector<size_t> ordered(std::vector<T> const& values, desc_comparator<T> com
 	std::sort( indices.begin(), indices.end(), comparator );
 
 	return indices;
+}
+
+class DirException : public std::runtime_error
+{
+private:
+	DirException ( const std::string &err ) : std::runtime_error (err) {}
+public:
+	static DirException NotEmpty(const bfs::path &path) {     return DirException(path.native() + " is not empty."); }
+	static DirException File(const bfs::path &path) {         return DirException(path.native() + " is a file."); }
+	static DirException CannotCreate(const bfs::path &path) { return DirException(path.native() + " cannot be created."); }
+};
+
+void get_directory(const bfs::path &path, const bool mustBeEmpty = false) {
+	if(bfs::exists(path)) {
+		if(bfs::is_directory(path)) {
+			if(mustBeEmpty && !bfs::is_empty(path))
+				throw DirException::NotEmpty(path);
+		} else
+			throw DirException::File(path);
+	} else {
+		if(!bfs::create_directories(path))
+			throw DirException::CannotCreate(path);
+	}
+}
+
+std::string pad(const unsigned int i, const char c = '0', const unsigned int l = 6) {
+	std::ostringstream os;
+	os << std::setfill(c) << std::setw(l) << i;
+	return os.str();
 }
 
 int main(int argc, char **argv)
@@ -78,99 +113,219 @@ int main(int argc, char **argv)
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
 	CliParser cli_parser;
-	int parse_result = cli_parser.parse_argv(argc, argv);
-	if(parse_result <= 0) {
-		exit(parse_result);
-	}
-
-	boost::filesystem::path path_export_dir(cli_parser.get_export_dir());
-
-	if(boost::filesystem::exists(path_export_dir)) {
-		if(boost::filesystem::is_directory(path_export_dir)) {
-			if(!boost::filesystem::is_empty(path_export_dir)) {
-				LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " exists but is not empty");
-				exit(-1);
-			}
-		} else {
-			LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " already exists as a file");
-			exit(-1);
-		}
-	} else {
-		if(!boost::filesystem::create_directories(path_export_dir)) {
-			LOG4CXX_FATAL(logger, "Export directory " << path_export_dir << " cannot be created");
-			exit(-1);
-		}
-	}
-
-	timestamp_t last_timestamp = get_timestamp();
-	LOG4CXX_INFO(logger, "Loading features image");
-
-	typename itk::ImageFileReader< FeaturesImage >::Pointer featuresImageReader = itk::ImageFileReader< FeaturesImage >::New();
-	featuresImageReader->SetFileName(cli_parser.get_input_image());
-
 	try {
-		featuresImageReader->Update();
+		if(cli_parser.parse_argv(argc, argv) != CliParser::CONTINUE)
+			exit(0);
+	} catch (CliException &err) {
+		LOG4CXX_FATAL(logger, err.what());
+		return -1;
 	}
-	catch( itk::ExceptionObject &ex )
-	{
-		LOG4CXX_FATAL(logger, "ITK is unable to load the image \"" << cli_parser.get_input_image() << "\" (" << ex.what() << ")");
-		exit(-1);
+
+	timestamp_t last_timestamp;
+
+	FeaturesImage::Pointer input_image;
+
+	/*
+	 * Loading the input image (if it exists).
+	 */
+	if(!cli_parser.get_input_image().empty()) {
+		last_timestamp = get_timestamp();
+		LOG4CXX_INFO(logger, "Loading features image");
+
+		typename itk::ImageFileReader< FeaturesImage >::Pointer input_image_reader = itk::ImageFileReader< FeaturesImage >::New();
+		input_image_reader->SetFileName(cli_parser.get_input_image());
+
+		try {
+			input_image_reader->Update();
+		} catch( itk::ExceptionObject &ex ) {
+			LOG4CXX_FATAL(logger, "ITK is unable to load the image \"" << cli_parser.get_input_image() << "\" (" << ex.what() << ")");
+			exit(-1);
+		}
+
+		input_image = input_image_reader->GetOutput();
+
+		LOG4CXX_INFO(logger, "Features image loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 	}
-
-	FeaturesImage::Pointer featuresImage = featuresImageReader->GetOutput();
-
-	LOG4CXX_INFO(logger, "Features image loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
 
 	NeuralNetworkPixelClassifiers pixelClassifiers;
 
-	last_timestamp = get_timestamp();
-	LOG4CXX_INFO(logger, "Loading training classes");
-
-	try {
-		pixelClassifiers.load_training_sets(cli_parser.get_class_images(), featuresImage);
-	} catch (LearningClassException & ex) {
-		LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
-		exit(-1);
-	}
-
-	LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
-
-
-	const unsigned int number_of_classifiers = pixelClassifiers.getNumberOfClassifiers();;
-
-    /*
-     * Creation of the export folders for each class
-     */
-	for(int i = 0; i < number_of_classifiers; ++i)
-	{
-		std::ostringstream export_dir;
-		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
-
-		boost::filesystem::path path_class_export_dir(export_dir.str());
-		if(!boost::filesystem::create_directories(path_class_export_dir)) {
-			LOG4CXX_FATAL(logger, "Output dir " << path_class_export_dir << " cannot be created");
+	if(cli_parser.get_ann_images_classes().empty()) {
+		/*
+		 * Loading the neural network from a stored configuration.
+		 */
+		try {
+			pixelClassifiers.load_neural_networks(cli_parser.get_ann_config_dir());
+		} catch (std::runtime_error &err) {
+			LOG4CXX_FATAL(logger, err.what());
 			exit(-1);
+		}
+	} else {
+		/*
+		 * Loading the training classes.
+		 */
+		last_timestamp = get_timestamp();
+		LOG4CXX_INFO(logger, "Loading training classes");
+
+		boost::shared_ptr< FannClassificationDataset > fannTrainingDatasets;
+
+		try {
+			boost::shared_ptr< ClassificationDataset > trainingDataset;
+
+			if(cli_parser.get_ann_images().empty()) {
+				/*
+				 * No image provided for training the classifier, so we
+				 * wil use the one that will be segmented.
+				 */
+				LOG4CXX_INFO(logger, "Loading training classes from input image");
+
+				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(input_image, cli_parser.get_ann_images_classes()));
+			} else {
+				/*
+				 * A list of image is available to train the classifier.
+				 */
+				LOG4CXX_INFO(logger, "Loading training classes from a list of images");
+
+				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(cli_parser.get_ann_images(), cli_parser.get_ann_images_classes()));
+			}
+
+			fannTrainingDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(*trainingDataset));
+
+			fannTrainingDatasets->shuffle();
+
+		} catch (ClassificationDatasetException & ex) {
+			LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
+			exit(-1);
+		}
+
+
+		LOG4CXX_INFO(logger, "Training classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+
+
+
+		/*
+		 * Loading the validation classes.
+		 */
+		last_timestamp = get_timestamp();
+		boost::shared_ptr< FannClassificationDataset > fannValidationDatasets;
+
+		if(cli_parser.get_ann_validation_images().size() > 0) {
+			try {
+				/*
+				 * A list of image is available to build the validation-set.
+				 */
+				LOG4CXX_INFO(logger, "Loading validation-classes from a list of images");
+
+				ClassificationDataset validationDataset(cli_parser.get_ann_validation_images(), cli_parser.get_ann_validation_images_classes());
+
+				if(validationDataset.getDataLength() != fannTrainingDatasets->getFeaturesLength()) {
+					LOG4CXX_FATAL(logger, "The validation set do not have the same number of components per pixel than the training set.");
+					exit(-1);
+				}
+
+				fannValidationDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(validationDataset));
+
+			} catch (ClassificationDatasetException & ex) {
+				LOG4CXX_FATAL(logger, "Unable to load the validation classes: " << ex.what());
+				exit(-1);
+			}
+		} else if(cli_parser.get_ann_validation_training_ratio() > 0) {
+			/*
+			 * From the training set.
+			 */
+			LOG4CXX_INFO(logger, "Generating the validation-set from the training-set with a ratio of " << cli_parser.get_ann_validation_training_ratio());
+
+			try {
+				std::pair< boost::shared_ptr< FannClassificationDataset >, boost::shared_ptr< FannClassificationDataset > > new_sets =
+					fannTrainingDatasets->split(1-cli_parser.get_ann_validation_training_ratio());
+
+				fannTrainingDatasets = new_sets.first;
+				fannValidationDatasets = new_sets.second;
+
+			} catch (FannClassificationDatasetException &ex) {
+				LOG4CXX_FATAL(logger, "Cannot generate validation-set from training-set: " << ex.what());
+				exit(-1);
+			}
+		}
+
+		LOG4CXX_INFO(logger, "Validation classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+
+
+		/*
+		 * Training of neural networks
+		 */
+		last_timestamp = get_timestamp();
+		LOG4CXX_INFO(logger, "Training neural networks");
+
+		{
+			std::vector< unsigned int > ann_layers = cli_parser.get_ann_hidden_layers();
+
+			ann_layers.insert(ann_layers.begin(), fannTrainingDatasets->getFeaturesLength()); // First layer: number of features
+			ann_layers.push_back(1); // Last layer: one output
+
+			pixelClassifiers.create_neural_networks(fannTrainingDatasets->getNumberOfDatasets(), ann_layers, cli_parser.get_ann_learning_rate());
+			pixelClassifiers.train_neural_networks(fannTrainingDatasets.get(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target(), fannValidationDatasets.get());
+		}
+		// TODO Supprimer le training set et le validation-set
+
+		LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+
+		/*
+		 * Sauvegarde de la configuration des réseaux de neurones (si nécessaire).
+		 */
+		if(!cli_parser.get_ann_config_dir().empty()) {
+			bfs::path ann_config_dir(cli_parser.get_ann_config_dir());
+
+			try {
+				get_directory(ann_config_dir);
+				pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
+			} catch (std::runtime_error &err) {
+				LOG4CXX_FATAL(logger, err.what());
+				exit(-1);
+			}
 		}
 	}
 
+	/*
+	 *
+	 *
+	 *
+	 * The classifier is ready!
+	 *
+	 *
+	 *
+	 */
 
-    /*
-     * Training of neural networks
-     */
-	last_timestamp = get_timestamp();
-	LOG4CXX_INFO(logger, "Training neural networks");
+	if(cli_parser.get_input_image().empty())
+		exit(0);
 
-	{
-		std::vector< unsigned int > hidden_layers = cli_parser.get_ann_hidden_layers();
-		hidden_layers.insert(hidden_layers.begin(), featuresImage->GetNumberOfComponentsPerPixel()); // First layer: number of features
-		hidden_layers.push_back(1); // Last layer: one output
-
-		pixelClassifiers.create_and_train_neural_networks(hidden_layers, cli_parser.get_ann_learning_rate(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target());
+	if(pixelClassifiers.getNumberOfComponentsPerPixel() != input_image->GetNumberOfComponentsPerPixel()) {
+		LOG4CXX_FATAL(logger, "The classifier is configured to work on pixels with " << pixelClassifiers.getNumberOfComponentsPerPixel() << " components per pixel,");
+		LOG4CXX_FATAL(logger, "but the input image has " << input_image->GetNumberOfComponentsPerPixel() << " components per pixel.");
+		exit(-1);
 	}
 
-	LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
+	bfs::path export_dir_path(cli_parser.get_export_dir());
+	try {
+		get_directory(export_dir_path);
+	} catch (DirException &err) {
+		LOG4CXX_FATAL(logger, err.what());
+		exit(-1);
+	}
 
+	const unsigned int number_of_classifiers = pixelClassifiers.getNumberOfClassifiers();
+
+	/*
+	 * Creation of the export folders for each class
+	 */
+	if(cli_parser.get_export_interval() > 0) {
+		try {
+			for(int i = 0; i < number_of_classifiers; ++i)
+				get_directory(export_dir_path / pad(i));
+		} catch (DirException &err) {
+			LOG4CXX_FATAL(logger, err.what());
+			exit(-1);
+		}
+	}
 
 	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
 	LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
@@ -188,9 +343,9 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Generating graph structure");
 
 	tlp::DataSet data;
-	data.set("Width",               featuresImage->GetLargestPossibleRegion().GetSize()[0]);
-	data.set("Height",              featuresImage->GetLargestPossibleRegion().GetSize()[1]);
-	data.set("Depth",               featuresImage->GetLargestPossibleRegion().GetSize()[2]);
+	data.set("Width",               input_image->GetLargestPossibleRegion().GetSize()[0]);
+	data.set("Height",              input_image->GetLargestPossibleRegion().GetSize()[1]);
+	data.set("Depth",               input_image->GetLargestPossibleRegion().GetSize()[2]);
 	data.set("Neighborhood radius", 1.0);
 	data.set("Neighborhood type",   tlp::StringCollection("Circular"));
 	data.set("Positionning",        true);
@@ -233,15 +388,15 @@ int main(int argc, char **argv)
 		tlp::node u;
 
 		const FeaturesImage::PixelType::ValueType *features_tmp;
-		std::vector<double> features(featuresImage->GetNumberOfComponentsPerPixel());
+		std::vector<double> features(input_image->GetNumberOfComponentsPerPixel());
 
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			FeaturesImage::PixelType texture = featuresImage->GetPixel(featuresImage->ComputeIndex(u.id));
+			FeaturesImage::PixelType texture = input_image->GetPixel(input_image->ComputeIndex(u.id));
 
 			features_tmp = texture.GetDataPointer();
-			features.assign(features_tmp, features_tmp + featuresImage->GetNumberOfComponentsPerPixel());
+			features.assign(features_tmp, features_tmp + input_image->GetNumberOfComponentsPerPixel());
 			features_property->setNodeValue(u, features);
 		}
 		delete itNodes;
@@ -254,15 +409,12 @@ int main(int argc, char **argv)
 
 	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classifiers); 
 
-    /*
-     * Classification of the pixels by each classifier
-     */
+	/*
+	 * Classification of the pixels by each classifier
+	 */
 	for(unsigned int i = 0; i < number_of_classifiers; ++i)
 	{
-		std::ostringstream graph_name;
-		graph_name << std::setfill('0') << std::setw(6) << i;
-
-		tlp::Graph* subgraph = graph->addSubGraph(everything, graph_name.str());
+		tlp::Graph* subgraph = graph->addSubGraph(everything, pad(i));
 
 		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
 
@@ -276,33 +428,24 @@ int main(int argc, char **argv)
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			//if(roi->getNodeValue(u)) // TODO Pose problème avec f0_size
+			if(roi->getNodeValue(u)) // Fut un temps ou cela posait problème avec f0_size, mais cela est réparé
 			{
-				//double* result = fann_run( net.get(), const_cast<fann_type *>( &(features_property->getNodeValue(u)[0]) ) ); // Conversion from vector<double> to double*
 				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
 				features[0] = result[0];
 				f0->setNodeValue(u, features);
-				seed->setNodeValue(u, result[0]); // XXX Changer pour pas de binarisation
+				seed->setNodeValue(u, result[0]);
 			}
 		}
 		delete itNodes;
 
 		LOG4CXX_INFO(logger, "Data classification done for image #" << i);
 
-		{
-			std::ostringstream output_graph;
-			output_graph << cli_parser.get_export_dir() << "/graph_" << std::setfill('0') << std::setw(6) << i << ".tlp";
-			tlp::saveGraph(subgraph, output_graph.str());
-		}
-
-
 		/*****************************************************/
 		/* Application of the graph regularisation algorithm */
 		/*****************************************************/
 		LOG4CXX_INFO(logger, "Applying CV Regularization algorithm on image #" << i);
 
-		std::ostringstream export_dir;
-		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
+		bfs::path export_dir = export_dir_path / pad(i);
 
 		DoubleProperty* fn = subgraph->getLocalProperty< DoubleProperty >("fn");
 		BooleanProperty* segmentation = subgraph->getLocalProperty< BooleanProperty >("viewSelection");
@@ -317,7 +460,7 @@ int main(int argc, char **argv)
 		data4.set("lambda1",               cli_parser.get_lambda1());
 		data4.set("lambda2",               cli_parser.get_lambda2());
 		data4.set("export interval",       cli_parser.get_export_interval());
-		data4.set("dir::export directory", export_dir.str());
+		data4.set("dir::export directory", export_dir.native());
 
 		LoggerPluginProgress pp("main.cv_ta");
 
@@ -332,10 +475,12 @@ int main(int argc, char **argv)
 		LOG4CXX_INFO(logger, "Regularization done for image #" << i);
 	}
 
-	tlp::saveGraph(graph, cli_parser.get_export_dir() + "/" + "graph.tlp");
+	if(cli_parser.get_debug()) {
+		bfs::path output_graph = export_dir_path / "graph.tlp";
+	}
 
 	ImageType::Pointer classification_image = ImageType::New();
-	classification_image->SetRegions(featuresImage->GetLargestPossibleRegion());
+	classification_image->SetRegions(input_image->GetLargestPossibleRegion());
 	classification_image->Allocate();
 	ImageType::IndexType index;
 
@@ -374,11 +519,15 @@ int main(int argc, char **argv)
 
 				std::vector< size_t > ordered_indices = ordered(values, desc_comparator<double>(values));
 
-				if( (values[ordered_indices[0]] > 0.5) && ( (0.9 * values[ordered_indices[0]]) > values[ordered_indices[1]]) ) {
+				//if( (values[ordered_indices[0]] > 0.5) && ( (0.9 * values[ordered_indices[0]]) > values[ordered_indices[1]]) ) {
+				/*
+				if( values[ordered_indices[0]] > 0.5 ) {
 					max_pos = ordered_indices[0] + 1;
 				} else {
 					max_pos = 0;
 				}
+				*/
+				max_pos = ordered_indices[0] + 1;
 			} else {
 				max_pos = (regularized_segmentations[0]->getNodeValue(u) > 0.5 ? 1 : 2); // No rejected class
 			}
@@ -393,24 +542,27 @@ int main(int argc, char **argv)
 	}
 	delete itNodes;
 
-	std::string final_export_dir = cli_parser.get_export_dir() + "/final_export";
-	if(!boost::filesystem::create_directories(boost::filesystem::path(final_export_dir)))
-	{
-		LOG4CXX_FATAL(logger, final_export_dir << " cannot be created");
-		return -1;
+	bfs::path final_export_dir_path = export_dir_path / "final_export";
+
+	try {
+		get_directory(final_export_dir_path);
+	} catch (DirException &err) {
+		LOG4CXX_FATAL(logger, err.what());
+		exit(-1);
 	}
 
 	{
-		std::string final_class_export_dir = final_export_dir + "/classmap";
-		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
-		{
-			LOG4CXX_FATAL(logger, final_class_export_dir << " cannot be created");
-			return -1;
+		bfs::path classmap_export_dir_path = final_export_dir_path / "classmap";
+		try {
+			get_directory(classmap_export_dir_path);
+		} catch (DirException &err) {
+			LOG4CXX_FATAL(logger, err.what());
+			exit(-1);
 		}
 
+		bfs::path export_dir_pattern = classmap_export_dir_path / "%06d.bmp";
 		itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
-		final_class_export_dir = final_class_export_dir + "/%06d.bmp";
-		outputNames->SetSeriesFormat(final_class_export_dir.c_str());
+		outputNames->SetSeriesFormat(export_dir_pattern.native());
 		outputNames->SetStartIndex(0);
 		outputNames->SetEndIndex(depth - 1);
 
@@ -423,24 +575,18 @@ int main(int argc, char **argv)
 
 	for(int i = 0; i <= number_of_classifiers; ++i)
 	{
-		std::ostringstream class_name;
-		if(i > 0)
-		{
-			class_name << std::setfill('0') << std::setw(6) << i;
-		} else {
-			class_name << "rejected";
+		bfs::path final_class_export_dir_path = final_export_dir_path / (i == 0 ? "rejected" : pad(i));
+
+		try {
+			get_directory(final_class_export_dir_path);
+		} catch (DirException &err) {
+			LOG4CXX_FATAL(logger, err.what());
+			exit(-1);
 		}
 
-		std::string final_class_export_dir = final_export_dir + "/" + class_name.str();
-		if(!boost::filesystem::create_directories(boost::filesystem::path(final_class_export_dir)))
-		{
-			LOG4CXX_FATAL(logger, final_class_export_dir << " cannot be created");
-			return -1;
-		}
-
+		bfs::path final_class_export_dir_pattern = final_class_export_dir_path / "%06d.bmp";
 		itk::NumericSeriesFileNames::Pointer outputNames = itk::NumericSeriesFileNames::New();
-		final_class_export_dir = final_class_export_dir + "/%06d.bmp";
-		outputNames->SetSeriesFormat(final_class_export_dir.c_str());
+		outputNames->SetSeriesFormat(final_class_export_dir_pattern.native());
 		outputNames->SetStartIndex(0);
 		outputNames->SetEndIndex(depth - 1);
 
@@ -453,7 +599,6 @@ int main(int argc, char **argv)
 		typedef itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 > > WriterType;
 		WriterType::Pointer writer = WriterType::New();
 		writer->SetInput(thresholder->GetOutput());
-		//writer->SetSeriesFormat(final_export_dir.c_str());
 		writer->SetFileNames(outputNames->GetFileNames());
 		writer->Update();
 	}
