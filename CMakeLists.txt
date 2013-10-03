@@ -9,6 +9,10 @@ include(${ITK_USE_FILE})
 find_package(FANN REQUIRED)
 INCLUDE_DIRECTORIES(${FANN_INCLUDE_DIRS})
 
+find_package(Qt4 REQUIRED)
+include(${QT_USE_FILE})
+include_directories( ${QT_INCLUDE_DIR})
+
 set(Boost_USE_STATIC_LIBS        ON)
 set(Boost_USE_MULTITHREADED      ON)
 set(Boost_USE_STATIC_RUNTIME    ON)
@@ -28,12 +32,12 @@ if(OPENMP_FOUND)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-find_package(TULIP3 REQUIRED)
+find_package(TULIP REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
 
 ADD_DEFINITIONS(-DTULIP_DIR=${TULIP_DIR}/lib)
 
 add_executable(main main.cpp time_utils.cpp cli_parser.cpp common.cpp image_loader.cpp NeuralNetworkPixelClassifiers.cpp LoggerPluginProgress.cpp ParseUtils.cpp)
 set_target_properties(main PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
-target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARY} ${LOG4CXX_LIBRARIES})
+target_link_libraries(main ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES})
 

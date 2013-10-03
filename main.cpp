@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include <QApplication>
+
 #include "common.h"
 #include "time_utils.h"
 #include "cli_parser.h"
@@ -12,9 +14,14 @@
 
 #include "doublefann.h"
 
+#include <tulip/TlpQtTools.h>
+#include <tulip/PluginLoaderTxt.h>
 #include <tulip/Graph.h>
 #include <tulip/TlpTools.h>
-#include <tulip/TulipPlugin.h>
+#include <tulip/PluginLibraryLoader.h>
+#include <tulip/StringCollection.h>
+#include <tulip/DoubleProperty.h>
+#include <tulip/BooleanProperty.h>
 
 #include <boost/filesystem.hpp>
 
@@ -58,6 +65,8 @@ std::vector<size_t> ordered(std::vector<T> const& values, desc_comparator<T> com
 
 int main(int argc, char **argv)
 {
+	QApplication app(argc,argv);
+
 	log4cxx::BasicConfigurator::configure(
 			log4cxx::AppenderPtr(new log4cxx::ConsoleAppender(
 					log4cxx::LayoutPtr(new log4cxx::PatternLayout("\%-5p - [%c] - \%m\%n")),
@@ -165,8 +174,11 @@ int main(int argc, char **argv)
 
 	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
 	LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
-	tlp::initTulipLib(STRINGIFY(TULIP_DIR));
-	tlp::loadPlugins(0);
+	//tlp::initTulipLib(STRINGIFY(TULIP_DIR));
+	//tlp::initTulipLib(0);
+	//tlp::PluginLibraryLoader::loadPlugins(0);
+	PluginLoaderTxt txtLoader;
+	tlp::initTulipSoftware(&txtLoader);
 
 
 	/*
@@ -176,12 +188,13 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Generating graph structure");
 
 	tlp::DataSet data;
-	data.set<int>("Width", featuresImage->GetLargestPossibleRegion().GetSize()[0]);
-	data.set<int>("Height", featuresImage->GetLargestPossibleRegion().GetSize()[1]);
-	data.set<int>("Depth", featuresImage->GetLargestPossibleRegion().GetSize()[2]);
-	data.set<tlp::StringCollection>("Connectivity", tlp::StringCollection("4"));
-	data.set<bool>("Positionning", true);
-	data.set<double>("Spacing", 1.0);
+	data.set("Width",               featuresImage->GetLargestPossibleRegion().GetSize()[0]);
+	data.set("Height",              featuresImage->GetLargestPossibleRegion().GetSize()[1]);
+	data.set("Depth",               featuresImage->GetLargestPossibleRegion().GetSize()[2]);
+	data.set("Neighborhood radius", 1.0);
+	data.set("Neighborhood type",   tlp::StringCollection("Circular"));
+	data.set("Positionning",        true);
+	data.set("Spacing",             1.0);
 
 	tlp::Graph *graph = tlp::importGraph("Grid 3D", data);
 
@@ -189,25 +202,26 @@ int main(int argc, char **argv)
 	everything->setAllNodeValue(true);
 	everything->setAllEdgeValue(true);
 
+	tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("ROI");
+
 	LOG4CXX_INFO(logger, "Importing region of interest");
 	if(cli_parser.get_region_of_interest().empty()) {
 		LOG4CXX_INFO(logger, "No region of interest specified");
-		graph->getLocalProperty<tlp::BooleanProperty>("ROI")->setAllNodeValue(true);
+		roi->setAllNodeValue(true);
 	} else {
 		tlp::DataSet data;
 		std::string error;
-		data.set< string >("dir::Mask folder", cli_parser.get_region_of_interest());
-		data.set< StringCollection >("Property type", StringCollection("boolean"));
-		data.set< string >("Property name", "ROI");
+		data.set("file::Image",          cli_parser.get_region_of_interest());
+		data.set("Property",             roi);
+		data.set("Convert to grayscale", false);
 
-		if(!graph->applyAlgorithm("Mask for image 3D", error, &data)) {
+		if(!graph->applyAlgorithm("Load image data", error, &data)) {
 			LOG4CXX_FATAL(logger, "Unable to import region of interest: " << error);
 			return -1;
 		}
-		LOG4CXX_INFO(logger, "Region of interest imported");
+		LOG4CXX_INFO(logger, "Region of interest successfully imported");
 	}
 
-	tlp::BooleanProperty *roi = graph->getLocalProperty<tlp::BooleanProperty>("ROI");
 
 	tlp::DoubleProperty *weight = graph->getLocalProperty<tlp::DoubleProperty>("Weight");
 	weight->setAllEdgeValue(1);
@@ -248,7 +262,7 @@ int main(int argc, char **argv)
 		std::ostringstream graph_name;
 		graph_name << std::setfill('0') << std::setw(6) << i;
 
-		tlp::Graph* subgraph = graph->addSubGraph(everything, 0, graph_name.str());
+		tlp::Graph* subgraph = graph->addSubGraph(everything, graph_name.str());
 
 		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
 
@@ -285,33 +299,35 @@ int main(int argc, char **argv)
 		/*****************************************************/
 		/* Application of the graph regularisation algorithm */
 		/*****************************************************/
-		LOG4CXX_INFO(logger, "Applying CV_Ta algorithm on image #" << i);
+		LOG4CXX_INFO(logger, "Applying CV Regularization algorithm on image #" << i);
 
 		std::ostringstream export_dir;
 		export_dir << cli_parser.get_export_dir() << "/" << std::setfill('0') << std::setw(6) << i;
 
+		DoubleProperty* fn = subgraph->getLocalProperty< DoubleProperty >("fn");
+		BooleanProperty* segmentation = subgraph->getLocalProperty< BooleanProperty >("viewSelection");
+
 		DataSet data4;
-		data4.set<PropertyInterface*>("data", f0);
-		data4.set<PropertyInterface*>("seed", seed);
-		data4.set<unsigned int>("number of iterations", cli_parser.get_num_iter());
-		data4.set<double>("lambda1", cli_parser.get_lambda1());
-		data4.set<double>("lambda2", cli_parser.get_lambda2());
-		data4.set<unsigned int>("export interval", cli_parser.get_export_interval());
-		data4.set<string>("dir::export directory", export_dir.str());
-		data4.set<PropertyInterface*>("weight", weight);
-		data4.set<PropertyInterface*>("region of interest", roi);
+		data4.set("seed",                  seed);
+		data4.set("result",                fn);
+		data4.set("segmentation result",   segmentation);
+		data4.set("data",                  f0);
+		data4.set("similarity measure",    weight);
+		data4.set("number of iterations",  cli_parser.get_num_iter());
+		data4.set("lambda1",               cli_parser.get_lambda1());
+		data4.set("lambda2",               cli_parser.get_lambda2());
+		data4.set("export interval",       cli_parser.get_export_interval());
+		data4.set("dir::export directory", export_dir.str());
 
 		LoggerPluginProgress pp("main.cv_ta");
 
 		string error4;
-		if(!subgraph->applyAlgorithm("Cv_Ta", error4, &data4, &pp)) {
-			LOG4CXX_FATAL(logger, "Unable to apply the Cv_Ta algorithm: " << error4);
+		if(!subgraph->applyAlgorithm("ChanVese Regularization", error4, &data4, &pp)) {
+			LOG4CXX_FATAL(logger, "Unable to apply the ChanVese Regularization algorithm: " << error4);
 			return -1;
 		}
 
-		subgraph->delLocalProperty("Seed");
-
-		regularized_segmentations[i] = subgraph->getLocalProperty< DoubleProperty >("fn");
+		regularized_segmentations[i] = fn;
 
 		LOG4CXX_INFO(logger, "Regularization done for image #" << i);
 	}
