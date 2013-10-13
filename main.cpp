@@ -328,7 +328,7 @@ int main(int argc, char **argv)
 	}
 
 	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
-	LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
+	//LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
 	//tlp::initTulipLib(STRINGIFY(TULIP_DIR));
 	//tlp::initTulipLib(0);
 	//tlp::PluginLibraryLoader::loadPlugins(0);
@@ -422,8 +422,7 @@ int main(int argc, char **argv)
 
 		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
 		tlp::node u;
-		tlp::DoubleVectorProperty *f0 = subgraph->getLocalProperty<tlp::DoubleVectorProperty>("f0");
-		std::vector<double> features(1);
+		tlp::DoubleProperty *f0 = subgraph->getLocalProperty<tlp::DoubleProperty>("f0");
 
 		while(itNodes->hasNext())
 		{
@@ -431,8 +430,7 @@ int main(int argc, char **argv)
 			if(roi->getNodeValue(u)) // Fut un temps ou cela posait problème avec f0_size, mais cela est réparé
 			{
 				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
-				features[0] = result[0];
-				f0->setNodeValue(u, features);
+				f0->setNodeValue(u, result[0]);
 				seed->setNodeValue(u, result[0]);
 			}
 		}
@@ -443,7 +441,8 @@ int main(int argc, char **argv)
 		/*****************************************************/
 		/* Application of the graph regularisation algorithm */
 		/*****************************************************/
-		LOG4CXX_INFO(logger, "Applying CV Regularization algorithm on image #" << i);
+		//LOG4CXX_INFO(logger, "Applying CV Regularization algorithm on image #" << i);
+		LOG4CXX_INFO(logger, "Applying ROF Regularization algorithm on image #" << i);
 
 		bfs::path export_dir = export_dir_path / pad(i);
 
@@ -457,15 +456,17 @@ int main(int argc, char **argv)
 		data4.set("data",                  f0);
 		data4.set("similarity measure",    weight);
 		data4.set("number of iterations",  cli_parser.get_num_iter());
-		data4.set("lambda1",               cli_parser.get_lambda1());
-		data4.set("lambda2",               cli_parser.get_lambda2());
+		data4.set("lambda",               cli_parser.get_lambda1());
+		//data4.set("lambda2",               cli_parser.get_lambda2());
 		data4.set("export interval",       cli_parser.get_export_interval());
 		data4.set("dir::export directory", export_dir.native());
 
 		LoggerPluginProgress pp("main.cv_ta");
 
 		string error4;
-		if(!subgraph->applyAlgorithm("ChanVese Regularization", error4, &data4, &pp)) {
+		//bool reg_applied = subgraph->applyAlgorithm("ChanVese Regularization", error4, &data4, &pp);
+		bool reg_applied = subgraph->applyAlgorithm("Rudin-Osher-Fatemi Regularization", error4, &data4, &pp);
+		if(!reg_applied) {
 			LOG4CXX_FATAL(logger, "Unable to apply the ChanVese Regularization algorithm: " << error4);
 			return -1;
 		}
