@@ -5,6 +5,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <cmath>
+#include <locale.h>
 
 #include <QApplication>
 
@@ -101,6 +102,7 @@ std::string pad(const unsigned int i, const char c = '0', const unsigned int l =
 int main(int argc, char **argv)
 {
 	QApplication app(argc,argv);
+	setlocale(LC_NUMERIC,"C");
 
 	log4cxx::BasicConfigurator::configure(
 			log4cxx::AppenderPtr(new log4cxx::ConsoleAppender(
