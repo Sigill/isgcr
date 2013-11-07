@@ -2,6 +2,7 @@
 #define TEMPLATES_CPP
 
 #undef ITK_MANUAL_INSTANTIATION
+#undef MANUAL_INSTANTIATION
 
 #include "common.h"
 
@@ -10,6 +11,9 @@
 
 #include <itkBinaryThresholdImageFilter.h>
 #include <itkImageRegionConstIteratorWithIndex.h>
+
+#include <doublefann.h>
+#include "ClassificationDataset.h"
 
 template class itk::Image< unsigned char, __ImageDimension >;
 template class itk::VectorImage< float, __ImageDimension >;
@@ -28,5 +32,7 @@ template class itk::ImageSeriesWriter< ImageType, itk::Image< unsigned char, 2 >
 template class itk::BinaryThresholdImageFilter< ImageType, ImageType >;
 
 template class itk::ImageRegionConstIteratorWithIndex< ImageType >;
+
+template class ClassificationDataset<fann_type>;
 
 #endif /* TEMPLATES_CPP */

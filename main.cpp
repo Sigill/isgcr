@@ -156,7 +156,7 @@ int main(int argc, char **argv)
 		 * Loading the neural network from a stored configuration.
 		 */
 		try {
-			pixelClassifiers.load_neural_networks(cli_parser.get_ann_config_dir());
+			pixelClassifiers.load(cli_parser.get_ann_config_dir());
 		} catch (std::runtime_error &err) {
 			LOG4CXX_FATAL(logger, err.what());
 			exit(-1);
@@ -168,11 +168,9 @@ int main(int argc, char **argv)
 		last_timestamp = get_timestamp();
 		LOG4CXX_INFO(logger, "Loading training classes");
 
-		boost::shared_ptr< FannClassificationDataset > fannTrainingDatasets;
+		boost::shared_ptr< ClassificationDataset<double> > trainingDataset;
 
 		try {
-			boost::shared_ptr< ClassificationDataset > trainingDataset;
-
 			if(cli_parser.get_ann_images().empty()) {
 				/*
 				 * No image provided for training the classifier, so we
@@ -180,20 +178,17 @@ int main(int argc, char **argv)
 				 */
 				LOG4CXX_INFO(logger, "Loading training classes from input image");
 
-				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(input_image, cli_parser.get_ann_images_classes()));
+				trainingDataset = boost::shared_ptr< ClassificationDataset<double> >(new ClassificationDataset<double>(input_image, cli_parser.get_ann_images_classes()));
 			} else {
 				/*
 				 * A list of image is available to train the classifier.
 				 */
 				LOG4CXX_INFO(logger, "Loading training classes from a list of images");
 
-				trainingDataset = boost::shared_ptr< ClassificationDataset >(new ClassificationDataset(cli_parser.get_ann_images(), cli_parser.get_ann_images_classes()));
+				trainingDataset = boost::shared_ptr< ClassificationDataset<double> >(
+						new ClassificationDataset<double>(cli_parser.get_ann_images(), cli_parser.get_ann_images_classes())
+				);
 			}
-
-			fannTrainingDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(*trainingDataset));
-
-			fannTrainingDatasets->shuffle();
-
 		} catch (ClassificationDatasetException & ex) {
 			LOG4CXX_FATAL(logger, "Unable to load the training classes: " << ex.what());
 			exit(-1);
@@ -208,7 +203,9 @@ int main(int argc, char **argv)
 		 * Loading the validation classes.
 		 */
 		last_timestamp = get_timestamp();
-		boost::shared_ptr< FannClassificationDataset > fannValidationDatasets;
+		LOG4CXX_INFO(logger, "Loading training classes");
+
+		boost::shared_ptr< ClassificationDataset<double> > validationDataset;
 
 		if(cli_parser.get_ann_validation_images().size() > 0) {
 			try {
@@ -217,14 +214,14 @@ int main(int argc, char **argv)
 				 */
 				LOG4CXX_INFO(logger, "Loading validation-classes from a list of images");
 
-				ClassificationDataset validationDataset(cli_parser.get_ann_validation_images(), cli_parser.get_ann_validation_images_classes());
+				validationDataset = boost::shared_ptr< ClassificationDataset<fann_type> >(
+						new ClassificationDataset<double>(cli_parser.get_ann_validation_images(), cli_parser.get_ann_validation_images_classes())
+				);
 
-				if(validationDataset.getDataLength() != fannTrainingDatasets->getFeaturesLength()) {
+				if(validationDataset->getInputSize() != trainingDataset->getInputSize()) {
 					LOG4CXX_FATAL(logger, "The validation set do not have the same number of components per pixel than the training set.");
 					exit(-1);
 				}
-
-				fannValidationDatasets = boost::shared_ptr< FannClassificationDataset >(new FannClassificationDataset(validationDataset));
 
 			} catch (ClassificationDatasetException & ex) {
 				LOG4CXX_FATAL(logger, "Unable to load the validation classes: " << ex.what());
@@ -237,11 +234,13 @@ int main(int argc, char **argv)
 			LOG4CXX_INFO(logger, "Generating the validation-set from the training-set with a ratio of " << cli_parser.get_ann_validation_training_ratio());
 
 			try {
-				std::pair< boost::shared_ptr< FannClassificationDataset >, boost::shared_ptr< FannClassificationDataset > > new_sets =
-					fannTrainingDatasets->split(1-cli_parser.get_ann_validation_training_ratio());
+				trainingDataset->shuffle();
 
-				fannTrainingDatasets = new_sets.first;
-				fannValidationDatasets = new_sets.second;
+				std::pair< boost::shared_ptr< ClassificationDataset<fann_type> >, boost::shared_ptr< ClassificationDataset<fann_type> > > new_sets =
+					trainingDataset->split(cli_parser.get_ann_validation_training_ratio());
+
+				trainingDataset = new_sets.second;
+				validationDataset = new_sets.first;
 
 			} catch (FannClassificationDatasetException &ex) {
 				LOG4CXX_FATAL(logger, "Cannot generate validation-set from training-set: " << ex.what());
@@ -251,6 +250,16 @@ int main(int argc, char **argv)
 
 		LOG4CXX_INFO(logger, "Validation classes loaded in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
+
+		boost::shared_ptr< FannClassificationDataset > fannTrainingDatasets(new FannClassificationDataset(*trainingDataset)),
+		                                               fannValidationDatasets(new FannClassificationDataset(*validationDataset));
+
+		fannTrainingDatasets->shuffle();
+
+		// TODO Supprimer le training set et le validation-set
+		// They are not needed now that we have the FannClassificationDatasets
+		trainingDataset.reset();
+		validationDataset.reset();
 
 		/*
 		 * Training of neural networks
@@ -267,7 +276,6 @@ int main(int argc, char **argv)
 			pixelClassifiers.create_neural_networks(fannTrainingDatasets->getNumberOfDatasets(), ann_layers, cli_parser.get_ann_learning_rate());
 			pixelClassifiers.train_neural_networks(fannTrainingDatasets.get(), cli_parser.get_ann_max_epoch(), cli_parser.get_ann_mse_target(), fannValidationDatasets.get());
 		}
-		// TODO Supprimer le training set et le validation-set
 
 		LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
@@ -279,7 +287,7 @@ int main(int argc, char **argv)
 
 			try {
 				get_directory(ann_config_dir);
-				pixelClassifiers.save_neural_networks(cli_parser.get_ann_config_dir());
+				pixelClassifiers.save(cli_parser.get_ann_config_dir());
 			} catch (std::runtime_error &err) {
 				LOG4CXX_FATAL(logger, err.what());
 				exit(-1);
@@ -411,33 +419,43 @@ int main(int argc, char **argv)
 
 	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classifiers); 
 
+	std::vector< tlp::Graph* > subgraphs;
+	std::vector< tlp::DoubleProperty* > f0_properties;
+	std::vector< tlp::DoubleProperty* > seed_properties;
+
 	/*
 	 * Classification of the pixels by each classifier
 	 */
 	for(unsigned int i = 0; i < number_of_classifiers; ++i)
 	{
-		tlp::Graph* subgraph = graph->addSubGraph(everything, pad(i));
+		tlp::Graph *subgraph = graph->addSubGraph(everything, pad(i));
 
-		boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork > net = pixelClassifiers.get_neural_network(i);
+		subgraphs.push_back(subgraph);
+		seed_properties.push_back(subgraph->getLocalProperty<tlp::DoubleProperty>("Seed"));
+		f0_properties.push_back(subgraph->getLocalProperty<tlp::DoubleProperty>("f0"));
+	}
 
-		tlp::DoubleProperty *seed = subgraph->getLocalProperty<tlp::DoubleProperty>("Seed");
-
-		tlp::Iterator<tlp::node> *itNodes = subgraph->getNodes();
+	{
+		tlp::Iterator<tlp::node> *itNodes = graph->getNodes();
 		tlp::node u;
-		tlp::DoubleProperty *f0 = subgraph->getLocalProperty<tlp::DoubleProperty>("f0");
-
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
 			if(roi->getNodeValue(u)) // Fut un temps ou cela posait problème avec f0_size, mais cela est réparé
 			{
-				double* result = fann_run( net.get(), const_cast<fann_type *>( features_property->getNodeValue(u).data() ) ); // Conversion from vector<double> to double*
-				f0->setNodeValue(u, result[0]);
-				seed->setNodeValue(u, result[0]);
+				std::vector<float> probabilities = pixelClassifiers.classify(features_property->getNodeValue(u));
+				for(unsigned int i = 0; i < number_of_classifiers; ++i)
+				{
+					f0_properties[i]->setNodeValue(u, probabilities[i]);
+					seed_properties[i]->setNodeValue(u, probabilities[i]);
+				}
 			}
 		}
 		delete itNodes;
+	}
 
+	for(unsigned int i = 0; i < number_of_classifiers; ++i)
+	{
 		LOG4CXX_INFO(logger, "Data classification done for image #" << i);
 
 		/*****************************************************/
@@ -448,14 +466,14 @@ int main(int argc, char **argv)
 
 		bfs::path export_dir = export_dir_path / pad(i);
 
-		DoubleProperty* fn = subgraph->getLocalProperty< DoubleProperty >("fn");
-		BooleanProperty* segmentation = subgraph->getLocalProperty< BooleanProperty >("viewSelection");
+		DoubleProperty* fn = subgraphs[i]->getLocalProperty< DoubleProperty >("fn");
+		BooleanProperty* segmentation = subgraphs[i]->getLocalProperty< BooleanProperty >("viewSelection");
 
 		DataSet data4;
-		data4.set("seed",                  seed);
+		data4.set("seed",                  seed_properties[i]);
 		data4.set("result",                fn);
 		data4.set("segmentation result",   segmentation);
-		data4.set("data",                  f0);
+		data4.set("data",                  f0_properties[i]);
 		data4.set("similarity measure",    weight);
 		data4.set("number of iterations",  cli_parser.get_num_iter());
 		data4.set("lambda",               cli_parser.get_lambda1());
@@ -467,7 +485,7 @@ int main(int argc, char **argv)
 
 		string error4;
 		//bool reg_applied = subgraph->applyAlgorithm("ChanVese Regularization", error4, &data4, &pp);
-		bool reg_applied = subgraph->applyAlgorithm("Rudin-Osher-Fatemi Regularization", error4, &data4, &pp);
+		bool reg_applied = subgraphs[i]->applyAlgorithm("Rudin-Osher-Fatemi Regularization", error4, &data4, &pp);
 		if(!reg_applied) {
 			LOG4CXX_FATAL(logger, "Unable to apply the ChanVese Regularization algorithm: " << error4);
 			return -1;

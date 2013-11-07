@@ -35,6 +35,7 @@ endif()
 find_package(TULIP REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
 add_definitions(-DITK_MANUAL_INSTANTIATION)
+add_definitions(-DMANUAL_INSTANTIATION)
 
 add_executable(haralick_ann_regularization
 	main.cpp
@@ -45,7 +46,6 @@ add_executable(haralick_ann_regularization
 	NeuralNetworkPixelClassifiers.cpp
 	LoggerPluginProgress.cpp
 	ParseUtils.cpp
-	ClassificationDataset.cpp
 	FannClassificationDataset.cpp
 	templates.cpp
 	boost_program_options_types.cpp

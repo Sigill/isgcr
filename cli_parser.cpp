@@ -27,6 +27,16 @@ std::ostream &operator<<(std::ostream &s, const std::vector< TElemType >& v)
 	return s << ss.str();
 }
 
+std::istream& operator>>(std::istream& in, CliParser::ClassifierType& ct)
+{
+	std::string token;
+	in >> token;
+	if (token == "ann")
+		ct = CliParser::ANN;
+	else throw boost::program_options::invalid_option_value("Invalid classifier type");
+	return in;
+}
+
 CliParser::CliParser()
 {}
 
@@ -63,6 +73,9 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		("lambda2",
 			po::value< Double >(&(this->lambda2))->default_value(1.0),
 			"Lambda 2 parameter for regularization.")
+		("classifier-type",
+			po::value< ClassifierType >(&(this->classifier_type))->default_value(NONE),
+			"Type of classifier.")
 		("ann-image",
 			po::value< std::vector< std::string > >(&(this->ann_images))->multitoken(),
 			"An image from which the texture is learned (use --ann-image-class to define the regions to learn). Multiple images can be specified. If no image is specified, the input image will be used.")
@@ -91,7 +104,7 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 			po::value< std::vector< std::string > >(&(this->ann_validation_images_classes))->multitoken(),
 			"Defines the classes of the images used to validate de training of the neural network. If multiple images are used, they must have as much classes as the images on which the neural network is trained.")
 		("ann-build-validation-from-training",
-			po::value< Percentage >(&(this->ann_validation_training_ratio))->default_value(Percentage(0.0f)),
+			po::value< Percentage >(&(this->ann_validation_training_ratio))->default_value(Percentage(0.333f)),
 			"The percentage of elements from the training-set to extract to build the validation-set.")
 		;
 
@@ -114,6 +127,9 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 	}
 
 	this->debug = vm.count("debug");
+
+	if( this->classifier_type == NONE )
+		throw CliException("You must specify the type of the classifier.");
 
 	check_ann_parameters(vm);
 

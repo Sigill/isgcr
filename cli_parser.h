@@ -23,7 +23,12 @@ class CliParser
 public:
 	enum ParseResult {
 		CONTINUE = 0,
-		EXIT,
+		EXIT
+	};
+
+	enum ClassifierType {
+		NONE = 0,
+		ANN
 	};
 
 	CliParser();
@@ -46,6 +51,8 @@ public:
 	const int         get_num_iter() const;
 	const double      get_lambda1() const;
 	const double      get_lambda2() const;
+
+	const ClassifierType get_classifier_type() const;
 
 	const std::vector< std::string >  get_ann_images() const;
 	const std::vector< std::string >  get_ann_images_classes() const;
@@ -70,6 +77,8 @@ private:
 	PositiveInteger num_iter;
 	Double          lambda1;
 	Double          lambda2;
+
+	ClassifierType classifier_type;
 
 	std::vector< std::string >  ann_images;
 	std::vector< std::string >  ann_images_classes;

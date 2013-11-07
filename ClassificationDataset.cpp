@@ -2,22 +2,26 @@
 #include "image_loader.h"
 #include "itkImageRegionConstIteratorWithIndex.h"
 #include "log4cxx/logger.h"
+#include <cstdlib> // rand()
 
-void ClassificationDataset::init(const int number_of_classes)
+template <typename TInputValueType>
+void ClassificationDataset<TInputValueType>::init(const int number_of_classes)
 {
 	m_NumberOfClasses = number_of_classes;
 	m_Classes = ClassVector(number_of_classes, Class());
-	m_DataLength = 0;
+	m_InputSize = 0;
 }
 
-ClassificationDataset::ClassificationDataset(typename FeaturesImage::Pointer image, const std::vector< std::string > &class_filenames)
+template <typename TInputValueType>
+ClassificationDataset<TInputValueType>::ClassificationDataset(typename FeaturesImage::Pointer image, const std::vector< std::string > &class_filenames)
 {
 	init(class_filenames.size());
 
 	load_image(image, class_filenames);
 }
 
-ClassificationDataset::ClassificationDataset(const std::vector< std::string > &images_filenames, const std::vector< std::string > &classes_filenames)
+template <typename TInputValueType>
+ClassificationDataset<TInputValueType>::ClassificationDataset(const std::vector< std::string > &images_filenames, const std::vector< std::string > &classes_filenames)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
@@ -37,7 +41,15 @@ ClassificationDataset::ClassificationDataset(const std::vector< std::string > &i
 	}
 }
 
-void ClassificationDataset::load_image(const std::string image_filename, const std::vector< std::string > class_filenames)
+template <typename TInputValueType>
+ClassificationDataset<TInputValueType>::ClassificationDataset(ClassVector *classes, const int number_of_classes, const int input_size) :
+	m_NumberOfClasses(number_of_classes),
+	m_InputSize(input_size),
+	m_Classes(*classes)
+{}
+
+template <typename TInputValueType>
+void ClassificationDataset<TInputValueType>::load_image(const std::string image_filename, const std::vector< std::string > class_filenames)
 {
 	typename itk::ImageFileReader< FeaturesImage >::Pointer reader = itk::ImageFileReader< FeaturesImage >::New();
 	reader->SetFileName(image_filename);
@@ -54,13 +66,14 @@ void ClassificationDataset::load_image(const std::string image_filename, const s
 	this->load_image(reader->GetOutput(), class_filenames);
 }
 
-void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, const std::vector< std::string > class_filenames)
+template <typename TInputValueType>
+void ClassificationDataset<TInputValueType>::load_image(typename FeaturesImage::Pointer image, const std::vector< std::string > class_filenames)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	if(m_DataLength == 0)
-		m_DataLength = image->GetNumberOfComponentsPerPixel();
-	else if(m_DataLength != image->GetNumberOfComponentsPerPixel())
+	if(m_InputSize== 0)
+		m_InputSize= image->GetNumberOfComponentsPerPixel();
+	else if(m_InputSize != image->GetNumberOfComponentsPerPixel())
 		throw ClassificationDatasetException("The image has a number of components which is unexpected.");
 
 	/**
@@ -98,7 +111,7 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 			if(255 == classIterator.Get()) {
 				const typename FeaturesImage::PixelType raw_values = image->GetPixel(classIterator.GetIndex());
 
-				DataType values(raw_values.GetDataPointer(), raw_values.GetDataPointer() + m_DataLength);
+				InputType values(raw_values.GetDataPointer(), raw_values.GetDataPointer() + m_InputSize);
 
 				current_class.push_back(values);
 			}
@@ -110,17 +123,60 @@ void ClassificationDataset::load_image(typename FeaturesImage::Pointer image, co
 	}
 }
 
-const ClassificationDataset::Class& ClassificationDataset::getClass(const int c)
+template <typename TInputValueType>
+const typename ClassificationDataset<TInputValueType>::Class& ClassificationDataset<TInputValueType>::getClass(const int c) const
 {
 	return m_Classes[c];
 }
 
-int ClassificationDataset::getNumberOfClasses() const
+template <typename TInputValueType>
+int ClassificationDataset<TInputValueType>::getNumberOfClasses() const
 {
 	return m_NumberOfClasses;
 }
 
-int ClassificationDataset::getDataLength() const
+template <typename TInputValueType>
+int ClassificationDataset<TInputValueType>::getInputSize() const
 {
-	return m_DataLength;
+	return m_InputSize;
 }
+
+template <typename TInputValueType>
+std::pair< boost::shared_ptr< ClassificationDataset<TInputValueType> >, boost::shared_ptr< ClassificationDataset<TInputValueType> > >
+ClassificationDataset<TInputValueType>::split(const float ratio) const
+{
+	ClassVector cv1(m_NumberOfClasses, Class()),
+	            cv2(m_NumberOfClasses, Class());
+
+	for(int i = 0; i < m_NumberOfClasses; ++i)
+	{
+		const int number_of_elements = getClass(i).size();
+		const int first_set_size     = round( number_of_elements * ratio );
+		const int second_set_size    = number_of_elements - first_set_size;
+
+		if((0 == first_set_size) || (0 == second_set_size))
+			throw ClassificationDatasetException("Cannot split this ClassificationDataset. The ratio will ends-up generating an empty set.");
+
+		cv1[i].insert(cv1[i].end(), getClass(i).begin(), getClass(i).begin() + first_set_size);
+		cv2[i].insert(cv2[i].end(), getClass(i).begin() + first_set_size, getClass(i).end());
+	}
+
+	return std::make_pair(
+		new ClassificationDataset(&cv1, m_NumberOfClasses, m_InputSize),
+		new ClassificationDataset(&cv2, m_NumberOfClasses, m_InputSize)
+		);
+}
+
+template <typename TInputValueType>
+void ClassificationDataset<TInputValueType>::shuffle()
+{
+	for(int i = 0; i < m_NumberOfClasses; ++i)
+	{
+		Class &c = m_Classes[i];
+		for(int j = c.size() - 1; j > 0; --j)
+		{
+			c[j].swap(c[std::rand() % (j+1)]);
+		}
+	}
+}
+

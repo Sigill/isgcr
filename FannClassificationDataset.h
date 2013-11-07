@@ -25,7 +25,7 @@ private:
 	typedef std::vector< boost::shared_ptr< FannDataset > > Container;
 
 public:
-	FannClassificationDataset(ClassificationDataset &classificationDataset);
+	FannClassificationDataset(ClassificationDataset<fann_type> &classificationDataset);
 	FannClassificationDataset(Container &sets, const int featuresLength);
 	~FannClassificationDataset();
 

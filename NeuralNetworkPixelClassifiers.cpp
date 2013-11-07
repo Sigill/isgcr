@@ -52,8 +52,6 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	// XXX We say that validation_sets is either empty or contains non-empty fann_train_data...
-
 	m_TrainingScoresHistory.clear();
 
 	if(validation_sets != NULL) {
@@ -106,14 +104,7 @@ void NeuralNetworkPixelClassifiers::train_neural_networks(
 	}
 }
 
-boost::shared_ptr< typename NeuralNetworkPixelClassifiers::NeuralNetwork >
-NeuralNetworkPixelClassifiers
-::get_neural_network(const unsigned int i)
-{
-	return m_NeuralNetworks[i];
-}
-
-void NeuralNetworkPixelClassifiers::save_neural_networks(const std::string dir)
+void NeuralNetworkPixelClassifiers::save(const std::string dir)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 	LOG4CXX_INFO(logger, "Saving neural networks in " << dir);
@@ -151,7 +142,7 @@ void NeuralNetworkPixelClassifiers::save_neural_networks(const std::string dir)
 	}
 }
 
-void NeuralNetworkPixelClassifiers::load_neural_networks(const std::string dir)
+void NeuralNetworkPixelClassifiers::load(const std::string dir)
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 	LOG4CXX_INFO(logger, "Loading neural networks from " << dir);
@@ -193,4 +184,17 @@ void NeuralNetworkPixelClassifiers::load_neural_networks(const std::string dir)
 	m_NumberOfComponentsPerPixel = fann_get_num_input(m_NeuralNetworks.front().get());
 
 	LOG4CXX_INFO(logger, "Number of components per pixel: " << m_NumberOfComponentsPerPixel);
+}
+
+std::vector<float> NeuralNetworkPixelClassifiers::classify(const std::vector< fann_type > &input) const
+{
+	std::vector<float> result(m_NumberOfClassifiers);
+
+	for(int i = 0; i < m_NumberOfClassifiers; ++i)
+	{
+		double* r = fann_run( m_NeuralNetworks[i].get(), const_cast<fann_type *>( input.data() ) );
+		result[i] = r[0];
+	}
+
+	return result;
 }

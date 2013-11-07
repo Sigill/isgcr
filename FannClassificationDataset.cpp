@@ -11,7 +11,7 @@ float round(float r) {
 
 
 
-FannClassificationDataset::FannClassificationDataset(ClassificationDataset &classificationDataset) :
+FannClassificationDataset::FannClassificationDataset(ClassificationDataset<fann_type> &classificationDataset) :
 	m_Container()
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
@@ -21,7 +21,7 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset &clas
 	if(0 == numberOfClasses)
 		throw FannClassificationDatasetException("Cannot build a FannClassificationDataset from an empty ClassificationDataset.");
 
-	m_FeaturesLength = classificationDataset.getDataLength();
+	m_FeaturesLength = classificationDataset.getInputSize();
 
 	if(0 == m_FeaturesLength)
 		throw FannClassificationDatasetException("The ClassificationDataset used to construct the FannClassificationDataset contains empty features.");
@@ -34,8 +34,8 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset &clas
 	{
 		for(int i = 0; i < numberOfClasses; ++i)
 		{
-			const ClassificationDataset::Class &c = classificationDataset.getClass(i);
-			
+			const ClassificationDataset<fann_type>::Class &c = classificationDataset.getClass(i);
+
 			if(c.empty()) {
 				std::stringstream err;
 				err << "The class #" << i << " is empty.";
@@ -55,9 +55,9 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset &clas
 
 	for(int i = 0; i < numberOfClasses; ++i)
 	{
-		const ClassificationDataset::Class &current_class = classificationDataset.getClass(i);
+		const ClassificationDataset<fann_type>::Class &current_class = classificationDataset.getClass(i);
 
-		ClassificationDataset::Class::const_iterator current_raw_class_it = current_class.begin(), current_raw_class_end = current_class.end();
+		ClassificationDataset<fann_type>::Class::const_iterator current_raw_class_it = current_class.begin(), current_raw_class_end = current_class.end();
 
 		while(current_raw_class_it != current_raw_class_end)
 		{
