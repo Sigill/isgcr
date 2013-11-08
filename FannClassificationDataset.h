@@ -32,12 +32,12 @@ public:
 	std::pair< boost::shared_ptr< FannClassificationDataset >, boost::shared_ptr< FannClassificationDataset > > split(const float ratio) const;
 
 	const int getNumberOfDatasets() const;
-	const int getFeaturesLength() const;
+	const int getInputSize() const;
 	void shuffle();
 	FannDataset* getSet(const int i) const;
 
 private:
-	int m_FeaturesLength;
+	int m_InputSize;
 	Container m_Container;
 };
 

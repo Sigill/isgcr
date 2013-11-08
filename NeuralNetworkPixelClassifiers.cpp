@@ -20,12 +20,17 @@ struct _StringComparator {
 	  bool operator() (const std::string a, const std::string b) { return a < b;}
 } StringComparator;
 
-void NeuralNetworkPixelClassifiers::create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate )
+void NeuralNetworkPixelClassifiers::create_neural_networks( const unsigned int inputSize, const unsigned int numberOfClassifiers, const std::vector< unsigned int > hiddenLayers, const float learning_rate )
 {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	m_NumberOfClassifiers = count;
-	m_NumberOfComponentsPerPixel = layers[0];
+	m_InputSize = inputSize;
+	m_NumberOfClassifiers = numberOfClassifiers;
+	m_NumberOfClasses = 1 == m_NumberOfClassifiers ? 2 : m_NumberOfClassifiers;
+
+	std::vector< unsigned int > layers = hiddenLayers;
+	layers.insert(layers.begin(), m_InputSize);
+	layers.push_back(1);
 
 	for(int i = 0; i < m_NumberOfClassifiers; ++i)
 	{
@@ -169,6 +174,7 @@ void NeuralNetworkPixelClassifiers::load(const std::string dir)
 	std::sort(config_files.begin(), config_files.end(), StringComparator);
 
 	m_NumberOfClassifiers = config_files.size();
+	m_NumberOfClasses = 1 == m_NumberOfClassifiers ? 2 : m_NumberOfClassifiers;
 
 	for(std::vector<std::string>::const_iterator it = config_files.begin(); it != config_files.end(); ++it) {
 		LOG4CXX_INFO(logger, "Loading neural network from " << *it);
@@ -181,9 +187,9 @@ void NeuralNetworkPixelClassifiers::load(const std::string dir)
 		m_NeuralNetworks.push_back( boost::shared_ptr< NeuralNetwork >( ann, fann_destroy ) );
 	}
 
-	m_NumberOfComponentsPerPixel = fann_get_num_input(m_NeuralNetworks.front().get());
+	m_InputSize = fann_get_num_input(m_NeuralNetworks.front().get());
 
-	LOG4CXX_INFO(logger, "Number of components per pixel: " << m_NumberOfComponentsPerPixel);
+	LOG4CXX_INFO(logger, "Number of components per pixel: " << m_InputSize);
 }
 
 std::vector<float> NeuralNetworkPixelClassifiers::classify(const std::vector< fann_type > &input) const

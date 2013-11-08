@@ -21,9 +21,9 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset<fann_
 	if(0 == numberOfClasses)
 		throw FannClassificationDatasetException("Cannot build a FannClassificationDataset from an empty ClassificationDataset.");
 
-	m_FeaturesLength = classificationDataset.getInputSize();
+	m_InputSize = classificationDataset.getInputSize();
 
-	if(0 == m_FeaturesLength)
+	if(0 == m_InputSize)
 		throw FannClassificationDatasetException("The ClassificationDataset used to construct the FannClassificationDataset contains empty features.");
 
 	const int numberOfClassifiers = (numberOfClasses == 2 ? 1 : numberOfClasses);
@@ -49,7 +49,7 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset<fann_
 	}
 
 	// Creating one data set that will be used to initialized the others
-	FannDataset *training_data = fann_create_train(total_number_of_elements, m_FeaturesLength, 1);
+	FannDataset *training_data = fann_create_train(total_number_of_elements, m_InputSize, 1);
 	fann_type **training_data_input_it = training_data->input;
 	fann_type **training_data_output_it = training_data->output;
 
@@ -101,7 +101,7 @@ FannClassificationDataset::FannClassificationDataset(ClassificationDataset<fann_
 
 
 FannClassificationDataset::FannClassificationDataset(Container &sets, const int featuresLength) :
-	m_Container(sets), m_FeaturesLength(featuresLength)
+	m_Container(sets), m_InputSize(featuresLength)
 {}
 
 
@@ -139,8 +139,8 @@ FannClassificationDataset::split(const float ratio) const
 	}
 
 	return std::make_pair(
-		new FannClassificationDataset(first_sets, m_FeaturesLength),
-		new FannClassificationDataset(second_sets, m_FeaturesLength)
+		new FannClassificationDataset(first_sets, m_InputSize),
+		new FannClassificationDataset(second_sets, m_InputSize)
 		);
 }
 
@@ -153,9 +153,9 @@ const int FannClassificationDataset::getNumberOfDatasets() const
 
 
 
-const int FannClassificationDataset::getFeaturesLength() const
+const int FannClassificationDataset::getInputSize() const
 {
-	return m_FeaturesLength;
+	return m_InputSize;
 }
 
 

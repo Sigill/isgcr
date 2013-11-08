@@ -28,7 +28,8 @@ public:
 
 	enum ClassifierType {
 		NONE = 0,
-		ANN
+		ANN,
+		SVM
 	};
 
 	CliParser();
@@ -54,9 +55,10 @@ public:
 
 	const ClassifierType get_classifier_type() const;
 
-	const std::vector< std::string >  get_ann_images() const;
-	const std::vector< std::string >  get_ann_images_classes() const;
-	const std::string                 get_ann_config_dir() const;
+	const std::vector< std::string >  get_classifier_training_images() const;
+	const std::vector< std::string >  get_classifier_training_images_classes() const;
+	const std::string                 get_classifier_config_dir() const;
+
 	const std::vector< unsigned int > get_ann_hidden_layers() const;
 	const float                       get_ann_learning_rate() const;
 	const unsigned int                get_ann_max_epoch() const;
@@ -78,11 +80,11 @@ private:
 	Double          lambda1;
 	Double          lambda2;
 
-	ClassifierType classifier_type;
+	ClassifierType             classifier_type;
+	std::vector< std::string > classifier_training_images;
+	std::vector< std::string > classifier_training_images_classes;
+	std::string                classifier_config_dir;
 
-	std::vector< std::string >  ann_images;
-	std::vector< std::string >  ann_images_classes;
-	std::string                 ann_config_dir;
 	HiddenLayerVector           ann_hidden_layers;
 	Float                       ann_learning_rate;
 	StrictlyPositiveInteger     ann_max_epoch;
@@ -91,9 +93,13 @@ private:
 	std::vector< std::string >  ann_validation_images_classes;
 	Percentage                  ann_validation_training_ratio;
 
-	void check_ann_parameters(po::variables_map &vm);
+	StrictlyPositiveInteger     svm_number_folds;
+
+	void check_config_or_training_set(po::variables_map &vm);
+	void check_ann_validation_set(po::variables_map &vm);
 	void check_regularization_parameters(po::variables_map &vm);
 
+	void print_classifier_parameters();
 	void print_ann_parameters();
 	void print_regularization_parameters();
 };

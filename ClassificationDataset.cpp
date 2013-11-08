@@ -136,6 +136,34 @@ int ClassificationDataset<TInputValueType>::getNumberOfClasses() const
 }
 
 template <typename TInputValueType>
+int ClassificationDataset<TInputValueType>::getNumberOfInputs() const
+{
+	int total_number_of_elements = 0;
+	for(int i = 0; i < m_NumberOfClasses; ++i)
+		total_number_of_elements += getClass(i).size();
+
+	return total_number_of_elements;
+}
+
+template <typename TInputValueType>
+void ClassificationDataset<TInputValueType>::checkValid() const
+{
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+
+	if(0 == m_NumberOfClasses)
+		throw ClassificationDatasetException("This dataset does not contain any class.");
+
+	for(int i = 0; i < m_NumberOfClasses; ++i)
+	{
+		if(getClass(i).empty()) {
+			std::stringstream err;
+			err << "The class #" << i << " is empty.";
+			throw ClassificationDatasetException(err.str());
+		}
+	}
+}
+
+template <typename TInputValueType>
 int ClassificationDataset<TInputValueType>::getInputSize() const
 {
 	return m_InputSize;

@@ -15,6 +15,8 @@
 #include <doublefann.h>
 #include "ClassificationDataset.h"
 
+#include "Classifier.h"
+
 template class itk::Image< unsigned char, __ImageDimension >;
 template class itk::VectorImage< float, __ImageDimension >;
 
@@ -34,5 +36,7 @@ template class itk::BinaryThresholdImageFilter< ImageType, ImageType >;
 template class itk::ImageRegionConstIteratorWithIndex< ImageType >;
 
 template class ClassificationDataset<fann_type>;
+
+template class Classifier<fann_type>;
 
 #endif /* TEMPLATES_CPP */

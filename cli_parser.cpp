@@ -33,6 +33,8 @@ std::istream& operator>>(std::istream& in, CliParser::ClassifierType& ct)
 	in >> token;
 	if (token == "ann")
 		ct = CliParser::ANN;
+	else if (token == "svm")
+		ct = CliParser::SVM;
 	else throw boost::program_options::invalid_option_value("Invalid classifier type");
 	return in;
 }
@@ -76,15 +78,15 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		("classifier-type",
 			po::value< ClassifierType >(&(this->classifier_type))->default_value(NONE),
 			"Type of classifier.")
-		("ann-image",
-			po::value< std::vector< std::string > >(&(this->ann_images))->multitoken(),
-			"An image from which the texture is learned (use --ann-image-class to define the regions to learn). Multiple images can be specified. If no image is specified, the input image will be used.")
-		("ann-image-class",
-			po::value< std::vector< std::string > >(&(this->ann_images_classes))->multitoken(),
+		("classifier-training-image",
+			po::value< std::vector< std::string > >(&(this->classifier_training_images))->multitoken(),
+			"An image from which the texture is learned (use --classifier-training-image-class to define the regions to learn). Multiple images can be specified. If no image is specified, the input image will be used.")
+		("classifier-training-image-class",
+			po::value< std::vector< std::string > >(&(this->classifier_training_images_classes))->multitoken(),
 			"Defines a class to be learned from a binary image. At least 2 values required. If multiple images are used, they must have the same number of classes.")
-		("ann-config-dir",
-			po::value< std::string >(&(this->ann_config_dir))->default_value(""),
-			"Directory containing the neural networks configuration files.")
+		("classifier-config-dir",
+			po::value< std::string >(&(this->classifier_config_dir))->default_value(""),
+			"Directory containing the classifier configuration files.")
 		("ann-hidden-layer",
 			po::value< HiddenLayerVector >(&(this->ann_hidden_layers))->multitoken()->default_value(HiddenLayerVector(1, 3)),
 			"Number of neurons per hidden layer (default: one layer of 3 neurons).")
@@ -128,15 +130,17 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 
 	this->debug = vm.count("debug");
 
+	check_config_or_training_set(vm);
+
 	if( this->classifier_type == NONE )
 		throw CliException("You must specify the type of the classifier.");
-
-	check_ann_parameters(vm);
+	else if( this->classifier_type == ANN )
+		check_ann_validation_set(vm);
 
 	if( !this->input_image.empty() ) {
 		check_regularization_parameters(vm);
 	} else {
-		if(this->ann_config_dir.empty()) {
+		if(this->classifier_config_dir.empty()) {
 			throw CliException("The directory where to save the neural networks configuration is not specified.");
 		}
 	}
@@ -187,19 +191,24 @@ const double CliParser::get_lambda2() const {
 	return this->lambda2;
 }
 
-const std::string CliParser::get_ann_config_dir() const
+const CliParser::ClassifierType CliParser::get_classifier_type() const
 {
-	return this->ann_config_dir;
+	return this->classifier_type;
 }
 
-const std::vector<std::string> CliParser::get_ann_images() const
+const std::string CliParser::get_classifier_config_dir() const
 {
-	return this->ann_images;
+	return this->classifier_config_dir;
 }
 
-const std::vector<std::string> CliParser::get_ann_images_classes() const
+const std::vector<std::string> CliParser::get_classifier_training_images() const
 {
-	return this->ann_images_classes;
+	return this->classifier_training_images;
+}
+
+const std::vector<std::string> CliParser::get_classifier_training_images_classes() const
+{
+	return this->classifier_training_images_classes;
 }
 
 const std::vector< unsigned int > CliParser::get_ann_hidden_layers() const {
@@ -243,20 +252,15 @@ const float CliParser::get_ann_validation_training_ratio() const {
  *         Throw an exception if the number of training-image is not coherent with the number of classes
  *         (there must be at least two classes per image, and the total number of image-classes must
  *         be a multiple of the number of training-images).
- *
- *     If there is at least one validation-image provided:
- *         Throw an exception if there is an option asking to build the validation-set from the training-set.
- *         Throw an exception if the number of validation-classes is not coherent with the number of
- *         validation-images or if the number of validation classes is different from tne number of training-classes.
  */
-void CliParser::check_ann_parameters(po::variables_map &vm) {
-	if(this->ann_images_classes.empty()) {
+void CliParser::check_config_or_training_set(po::variables_map &vm) {
+	if(this->classifier_training_images_classes.empty()) {
 		/*
 		 * If no class is specified, the neural network
 		 * must be loaded from a stored configuration.
 		 */
-		if(this->ann_config_dir.empty()) {
-			throw CliException("You must either load the neural network from a stored configuration or specify"
+		if(this->classifier_config_dir.empty()) {
+			throw CliException("You must either load the classifier from a stored configuration or specify"
 			                   " the image(s) and classes to use for training.");
 		}
 	} else {
@@ -265,27 +269,27 @@ void CliParser::check_ann_parameters(po::variables_map &vm) {
 		 */
 		int number_of_images, number_of_classes, number_of_classes_per_image;
 
-		if(this->ann_images.empty()) {
+		if(this->classifier_training_images.empty()) {
 			/*
 			 * If no learning image have been provided,
 			 * we use the input image of the algorithm.
 			 */
 			if(this->input_image.empty()) {
-				throw CliException("No image can be used to train the neural networks. You need to either specify"
-				                   "a list of images to use to train the neural networks, or provide an input image"
+				throw CliException("No image can be used to train the classifier. You need to either specify"
+				                   "a list of images to use to train it, or provide an input image"
 				                   "for the algorithm.");
 			}
 
 			number_of_images            = 1;
-			number_of_classes           = this->ann_images_classes.size();
+			number_of_classes           = this->classifier_training_images_classes.size();
 			number_of_classes_per_image = number_of_classes;
 		} else {
 			/*
 			 * We need to have the same number of classes (at least 2) for every
 			 * image used for the training of the neural networks.
 			 */
-			number_of_images            = this->ann_images.size();
-			number_of_classes           = this->ann_images_classes.size();
+			number_of_images            = this->classifier_training_images.size();
+			number_of_classes           = this->classifier_training_images_classes.size();
 			number_of_classes_per_image = number_of_classes / number_of_images;
 
 			if((number_of_classes % number_of_images != 0) || // Enough class for each image
@@ -295,22 +299,34 @@ void CliParser::check_ann_parameters(po::variables_map &vm) {
 						"for every image used for learning.");
 			}
 		}
+	}
+}
 
-		if(!this->ann_validation_images.empty()) {
-			if(vm.count("ann-build-validation-from-training")) {
-				throw CliException("You can't use the --ann-build-validation-from-training option when you specify the classes for the validation-set.");
-			}
+/*
+ * If there is at least one validation-image provided:
+ *     Throw an exception if there is an option asking to build the validation-set from the training-set.
+ *     Throw an exception if the number of validation-classes is not coherent with the number of
+ *       validation-images or if the number of validation classes is different from the number of training-classes.
+ */
+void CliParser::check_ann_validation_set(po::variables_map &vm) {
+	if(!this->ann_validation_images.empty()) {
+		if(vm.count("ann-build-validation-from-training")) {
+			throw CliException("You can't use the --ann-build-validation-from-training option when you specify the classes for the validation-set.");
+		}
 
-			const int number_of_validation_images = this->ann_validation_images.size(),
-			          number_of_validation_classes = this->ann_validation_images_classes.size(),
-			          number_of_classes_per_validation_image = number_of_validation_classes / number_of_validation_images;
+		const int number_of_images = this->classifier_training_images.empty() ? 1 : this->classifier_training_images.size(),
+				  number_of_classes = this->classifier_training_images_classes.size(),
+				  number_of_classes_per_image = number_of_classes / number_of_images,
 
-			if((number_of_validation_classes % number_of_validation_images != 0) ||     // Enough class for each image
-			   (number_of_classes_per_validation_image < 2) ||                          // At least two class per image
-			   (number_of_classes_per_validation_image != number_of_classes_per_image)) // As many classes as the for the images used in training
-			{
-				throw CliException("You have an invalid number of classes for the validation images.");
-			}
+				  number_of_validation_images = this->ann_validation_images.size(),
+				  number_of_validation_classes = this->ann_validation_images_classes.size(),
+				  number_of_classes_per_validation_image = number_of_validation_classes / number_of_validation_images;
+
+		if((number_of_validation_classes % number_of_validation_images != 0) ||     // Enough class for each image
+		   (number_of_classes_per_validation_image < 2) ||                          // At least two class per image
+		   (number_of_classes_per_validation_image != number_of_classes_per_image)) // As many classes as the for the images used in training
+		{
+			throw CliException("You have an invalid number of classes for the validation images.");
 		}
 	}
 }
@@ -320,17 +336,17 @@ void CliParser::check_regularization_parameters(po::variables_map &vm) {
 		throw CliException("You need to provide an export directory.");
 }
 
-void CliParser::print_ann_parameters() {
+void CliParser::print_classifier_parameters() {
 	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
 
-	if(this->ann_images_classes.empty()) {
-		if(!this->ann_config_dir.empty()) {
-			LOG4CXX_INFO(logger, "The neural networks will be loaded from: " << this->ann_config_dir);
+	if(this->classifier_training_images_classes.empty()) {
+		if(!this->classifier_config_dir.empty()) {
+			LOG4CXX_INFO(logger, "The classifier will be loaded from: " << this->classifier_config_dir);
 		}
 	} else {
-		std::vector< std::string > training_images = (this->ann_images.size() == 0 ? std::vector< std::string >(1, this->input_image) : this->ann_images);
+		std::vector< std::string > training_images = (this->classifier_training_images.size() == 0 ? std::vector< std::string >(1, this->input_image) : this->classifier_training_images);
 		const int number_of_images = training_images.size();
-		const int number_of_classes = this->ann_images_classes.size();
+		const int number_of_classes = this->classifier_training_images_classes.size();
 		const int number_of_classes_per_image = number_of_classes / number_of_images;
 
 		LOG4CXX_INFO(logger, "Neural networks parameters:");
@@ -340,18 +356,23 @@ void CliParser::print_ann_parameters() {
 			LOG4CXX_INFO(logger, "\tImage " << (j + 1) << ": " << training_images[j]);
 
 			for(int i = 0; i < number_of_classes_per_image; ++i) {
-				LOG4CXX_INFO(logger, "\t\tClass " << (i + 1) << ": " << this->ann_images_classes[j * number_of_classes_per_image + i]);
+				LOG4CXX_INFO(logger, "\t\tClass " << (i + 1) << ": " << this->classifier_training_images_classes[j * number_of_classes_per_image + i]);
 			}
 		}
-
-		std::stringstream m;
-		m << this->ann_hidden_layers;
-		LOG4CXX_INFO(logger, "\tNumber of hidden neurons per layer: " << m.str());
-
-		LOG4CXX_INFO(logger, "\tLearning rate: " << this->ann_learning_rate);
-		LOG4CXX_INFO(logger, "\tMaximum number of iterations: " << this->ann_max_epoch.value);
-		LOG4CXX_INFO(logger, "\tMean squared error targeted: " << this->ann_mse_target);
 	}
+}
+
+void CliParser::print_ann_parameters() {
+	log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("main"));
+
+	std::stringstream m;
+	m << this->ann_hidden_layers;
+
+	LOG4CXX_INFO(logger, "Neural networks parameters:");
+	LOG4CXX_INFO(logger, "\tNumber of hidden neurons per layer: " << m.str());
+	LOG4CXX_INFO(logger, "\tLearning rate: " << this->ann_learning_rate);
+	LOG4CXX_INFO(logger, "\tMaximum number of iterations: " << this->ann_max_epoch.value);
+	LOG4CXX_INFO(logger, "\tMean squared error targeted: " << this->ann_mse_target);
 }
 
 void CliParser::print_regularization_parameters() {

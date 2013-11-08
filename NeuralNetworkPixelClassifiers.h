@@ -20,7 +20,7 @@ namespace std {
 class NeuralNetworkPixelClassifiers : public Classifier< fann_type >
 {
 public:
-	void create_neural_networks( const int count, const std::vector< unsigned int > layers, const float learning_rate );
+	void create_neural_networks( const unsigned int inputSize, const unsigned int numberOfClassifiers, const std::vector< unsigned int > hiddenLayers, const float learning_rate );
 	void train_neural_networks(
 		FannClassificationDataset const *training_sets,
 		const unsigned int max_epoch,
@@ -32,14 +32,12 @@ public:
 	std::vector<float> classify(const std::vector< InputValueType > &input) const;
 
 	const unsigned int getNumberOfClassifiers() const { return m_NumberOfClassifiers; }
-	const unsigned int getNumberOfComponentsPerPixel() const { return m_NumberOfComponentsPerPixel; }
 
 private:
 	typedef struct fann NeuralNetwork;
 	typedef std::vector< boost::shared_ptr< NeuralNetwork > > NeuralNetworkVector;
 
 	unsigned int m_NumberOfClassifiers;
-	unsigned int m_NumberOfComponentsPerPixel;
 	NeuralNetworkVector m_NeuralNetworks;
 	std::vector< std::vector< std::pair< float, float > > > m_TrainingScoresHistory;
 };

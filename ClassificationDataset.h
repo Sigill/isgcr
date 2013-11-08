@@ -71,8 +71,13 @@ public:
 	/** The number of classes. */
 	int getNumberOfClasses() const;
 
+	/** The number of classes. */
+	int getNumberOfInputs() const;
+
 	/** The length of a pattern. */
 	int getInputSize() const;
+
+	void checkValid() const;
 
 	std::pair< boost::shared_ptr< ClassificationDataset<InputValueType> >, boost::shared_ptr< ClassificationDataset<InputValueType> > > split(const float ratio) const;
 

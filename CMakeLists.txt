@@ -9,6 +9,9 @@ include(${ITK_USE_FILE})
 find_package(FANN REQUIRED)
 INCLUDE_DIRECTORIES(${FANN_INCLUDE_DIRS})
 
+find_package(SVM REQUIRED)
+INCLUDE_DIRECTORIES(${SVM_INCLUDE_DIR})
+
 find_package(Qt4 REQUIRED)
 include(${QT_USE_FILE})
 include_directories( ${QT_INCLUDE_DIR})
@@ -49,8 +52,10 @@ add_executable(haralick_ann_regularization
 	FannClassificationDataset.cpp
 	templates.cpp
 	boost_program_options_types.cpp
+	LibSVMClassificationDataset.cpp
+	SVMPixelClassifier.cpp
 	)
 set_target_properties(haralick_ann_regularization PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
-target_link_libraries(haralick_ann_regularization ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES})
+target_link_libraries(haralick_ann_regularization ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES} ${SVM_LIBRARY})
 
 install(TARGETS haralick_ann_regularization RUNTIME DESTINATION ".")
