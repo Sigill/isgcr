@@ -22,9 +22,12 @@ public:
 
 	svm_problem* getProblem();
 
+	int getInputSize() const;
+
 private:
 	boost::shared_array<struct svm_node> x_space;
 	struct svm_problem prob;
+	int m_InputSize;
 };
 
 #endif /* LIBSVMCLASSIFICATIONDATASET_H */

@@ -1,9 +1,12 @@
 #include "LibSVMClassificationDataset.h"
+#include <fstream> // XXX
+#include <iostream>
 
 LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<double> &classificationDataset)
 {
+	m_InputSize = classificationDataset.getInputSize();
 	const int numberOfInputs = classificationDataset.getNumberOfInputs();
-	const int numberOfInputValues = classificationDataset.getInputSize() * numberOfInputs;
+	const int numberOfInputValues = (m_InputSize + 1) * numberOfInputs;
 
 	prob.l = numberOfInputs;
 
@@ -18,6 +21,10 @@ LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<d
 		throw LibSVMClassificationDatasetException("Cannot allocate memory.");
 	}
 
+	// XXX
+	std::ofstream file;
+	file.open ("haralick.scale");
+
 	int globalInputId = 0, globalInputValueId = 0;
 	for(int i = 0; i < classificationDataset.getNumberOfClasses(); ++i)
 	{
@@ -27,16 +34,25 @@ LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<d
 		{
 			prob.y[globalInputId] = i+1; // The class
 			prob.x[globalInputId] = &x_space[globalInputValueId];
+			file << i+1; // XXX
 
 			const ClassificationDataset<double>::InputType &input = c[inputId];
 
 			for(int inputValueId = 0; inputValueId < classificationDataset.getInputSize(); ++inputValueId, ++globalInputValueId)
 			{
-				x_space[globalInputValueId].index = inputValueId;
+				x_space[globalInputValueId].index = inputValueId + 1;
 				x_space[globalInputValueId].value = input[inputValueId];
+
+				file << " " << (inputValueId+1) << ":" << input[inputValueId]; // XXX
 			}
+			file << std::endl; // XXX
+
+			x_space[globalInputValueId].index = -1;
+			++globalInputValueId;
 		}
 	}
+
+	file.close(); // XXX
 }
 
 LibSVMClassificationDataset::~LibSVMClassificationDataset()
@@ -48,4 +64,9 @@ LibSVMClassificationDataset::~LibSVMClassificationDataset()
 svm_problem* LibSVMClassificationDataset::getProblem()
 {
 	return &prob;
+}
+
+int LibSVMClassificationDataset::getInputSize() const
+{
+	return m_InputSize;
 }

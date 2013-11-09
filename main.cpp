@@ -286,11 +286,17 @@ int main(int argc, char **argv)
 			LOG4CXX_INFO(logger, "Neural networks trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 		} else if(cli_parser.get_classifier_type() == CliParser::SVM) {
 			boost::shared_ptr< LibSVMClassificationDataset > svmTrainingDataset(new LibSVMClassificationDataset(*trainingDataset));
+			trainingDataset.reset();
 
-			// TODO
+			SVMPixelClassifier *svm = new SVMPixelClassifier();
+			pixelClassifier = boost::shared_ptr< Classifier<fann_type> >(svm);
 
-			LOG4CXX_FATAL(logger, "Not implemented yet!");
-			exit(-1);
+			last_timestamp = get_timestamp();
+			LOG4CXX_INFO(logger, "Training the SVM");
+			if(!svm->train(svmTrainingDataset.get())) {
+				exit(-1);
+			}
+			LOG4CXX_INFO(logger, "SVM trained in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 		}
 
 		/*
@@ -322,7 +328,7 @@ int main(int argc, char **argv)
 	if(cli_parser.get_input_image().empty())
 		exit(0);
 
-	if(pixelClassifier->getInputSize() != input_image->GetNumberOfComponentsPerPixel()) {
+	if((cli_parser.get_classifier_type() == CliParser::ANN) && (pixelClassifier->getInputSize() != input_image->GetNumberOfComponentsPerPixel())) {
 		LOG4CXX_FATAL(logger, "The classifier is configured to work on pixels with " << pixelClassifier->getInputSize() << " components per pixel, "
 		                   << "but the input image has " << input_image->GetNumberOfComponentsPerPixel() << " components per pixel.");
 		exit(-1);
@@ -433,8 +439,8 @@ int main(int argc, char **argv)
 	LOG4CXX_INFO(logger, "Graph structure generated in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 
-
-	LOG4CXX_INFO(logger, "Classifying pixels with neural networks");
+	last_timestamp = get_timestamp();
+	LOG4CXX_INFO(logger, "Classifying the pixels");
 
 	std::vector< tlp::DoubleProperty* > regularized_segmentations(number_of_classifiers); 
 
@@ -473,6 +479,8 @@ int main(int argc, char **argv)
 		}
 		delete itNodes;
 	}
+
+	LOG4CXX_INFO(logger, "Pixels classified in " << elapsed_time(last_timestamp, get_timestamp()) << "s");
 
 	for(unsigned int i = 0; i < number_of_classifiers; ++i)
 	{

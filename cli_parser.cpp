@@ -145,7 +145,8 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		}
 	}
 
-	print_ann_parameters();
+	if( this->classifier_type == ANN )
+		print_ann_parameters();
 
 	if( !this->input_image.empty() )
 		print_regularization_parameters();
