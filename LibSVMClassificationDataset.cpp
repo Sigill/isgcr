@@ -1,5 +1,5 @@
 #include "LibSVMClassificationDataset.h"
-#include <fstream> // XXX
+//#include <fstream> // XXX
 #include <iostream>
 
 LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<double> &classificationDataset)
@@ -22,8 +22,8 @@ LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<d
 	}
 
 	// XXX
-	std::ofstream file;
-	file.open ("haralick.scale");
+	//std::ofstream file;
+	//file.open ("haralick.scale");
 
 	int globalInputId = 0, globalInputValueId = 0;
 	for(int i = 0; i < classificationDataset.getNumberOfClasses(); ++i)
@@ -34,7 +34,7 @@ LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<d
 		{
 			prob.y[globalInputId] = i+1; // The class
 			prob.x[globalInputId] = &x_space[globalInputValueId];
-			file << i+1; // XXX
+			//file << i+1; // XXX
 
 			const ClassificationDataset<double>::InputType &input = c[inputId];
 
@@ -43,16 +43,16 @@ LibSVMClassificationDataset::LibSVMClassificationDataset(ClassificationDataset<d
 				x_space[globalInputValueId].index = inputValueId + 1;
 				x_space[globalInputValueId].value = input[inputValueId];
 
-				file << " " << (inputValueId+1) << ":" << input[inputValueId]; // XXX
+				//file << " " << (inputValueId+1) << ":" << input[inputValueId]; // XXX
 			}
-			file << std::endl; // XXX
+			//file << std::endl; // XXX
 
 			x_space[globalInputValueId].index = -1;
 			++globalInputValueId;
 		}
 	}
 
-	file.close(); // XXX
+	//file.close(); // XXX
 }
 
 LibSVMClassificationDataset::~LibSVMClassificationDataset()
