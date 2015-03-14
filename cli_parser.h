@@ -50,8 +50,7 @@ public:
 	const std::string get_export_dir() const;
 	const int         get_export_interval() const;
 	const int         get_num_iter() const;
-	const double      get_lambda1() const;
-	const double      get_lambda2() const;
+	const double      get_lambda() const;
 
 	const ClassifierType get_classifier_type() const;
 
@@ -77,8 +76,7 @@ private:
 	std::string     export_dir;
 	PositiveInteger export_interval;
 	PositiveInteger num_iter;
-	Double          lambda1;
-	Double          lambda2;
+	Double          lambda;
 
 	ClassifierType             classifier_type;
 	std::vector< std::string > classifier_training_images;

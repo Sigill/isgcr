@@ -69,15 +69,12 @@ CliParser::ParseResult CliParser::parse_argv(int argc, char ** argv)
 		("num-iter,n",
 			po::value< PositiveInteger >(&(this->num_iter))->default_value(0),
 			"Number of iterations for the regularization.")
-		("lambda1",
-			po::value< Double >(&(this->lambda1))->default_value(1.0),
-			"Lambda 1 parameter for regularization.")
-		("lambda2",
-			po::value< Double >(&(this->lambda2))->default_value(1.0),
-			"Lambda 2 parameter for regularization.")
+		("lambda",
+			po::value< Double >(&(this->lambda))->default_value(1.0),
+			"Lambda parameter for regularization.")
 		("classifier-type",
 			po::value< ClassifierType >(&(this->classifier_type))->default_value(NONE),
-			"Type of classifier.")
+			"Type of classifier. (ann or svm)")
 		("classifier-training-image",
 			po::value< std::vector< std::string > >(&(this->classifier_training_images))->multitoken(),
 			"An image from which the texture is learned (use --classifier-training-image-class to define the regions to learn). Multiple images can be specified. If no image is specified, the input image will be used.")
@@ -184,12 +181,8 @@ const int CliParser::get_num_iter() const
 	return this->num_iter;
 }
 
-const double CliParser::get_lambda1() const {
-	return this->lambda1;
-}
-
-const double CliParser::get_lambda2() const {
-	return this->lambda2;
+const double CliParser::get_lambda() const {
+	return this->lambda;
 }
 
 const CliParser::ClassifierType CliParser::get_classifier_type() const
@@ -385,6 +378,5 @@ void CliParser::print_regularization_parameters() {
 	LOG4CXX_INFO(logger,    "\tRegion of interest: "   << this->region_of_interest);
 	LOG4CXX_INFO(logger,    "\tExport interval: "      << this->export_interval);
 	LOG4CXX_INFO(logger,    "\tNumber of iterations: " << this->num_iter);
-	LOG4CXX_INFO(logger,    "\tLambda1: "              << this->lambda1);
-	LOG4CXX_INFO(logger,    "\tLambda2: "              << this->lambda2);
+	LOG4CXX_INFO(logger,    "\tLambda1: "              << this->lambda);
 }

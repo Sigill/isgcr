@@ -504,8 +504,7 @@ int main(int argc, char **argv)
 		data4.set("data",                  f0_properties[i]);
 		data4.set("similarity measure",    weight);
 		data4.set("number of iterations",  cli_parser.get_num_iter());
-		data4.set("lambda",               cli_parser.get_lambda1());
-		//data4.set("lambda2",               cli_parser.get_lambda2());
+		data4.set("lambda",               cli_parser.get_lambda());
 		data4.set("export interval",       cli_parser.get_export_interval());
 		data4.set("dir::export directory", export_dir.native());
 
