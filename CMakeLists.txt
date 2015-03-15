@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(Haralick_Ann_Reguralization)
+project(ISGCR)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
@@ -40,7 +40,7 @@ include_directories(${TULIP_INCLUDE_DIR})
 add_definitions(-DITK_MANUAL_INSTANTIATION)
 add_definitions(-DMANUAL_INSTANTIATION)
 
-add_executable(haralick_ann_regularization
+add_executable(isgcr
 	main.cpp
 	time_utils.cpp
 	cli_parser.cpp
@@ -55,7 +55,7 @@ add_executable(haralick_ann_regularization
 	LibSVMClassificationDataset.cpp
 	SVMPixelClassifier.cpp
 	)
-set_target_properties(haralick_ann_regularization PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
-target_link_libraries(haralick_ann_regularization ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES} ${SVM_LIBRARY})
+set_target_properties(isgcr PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
+target_link_libraries(isgcr ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES} ${SVM_LIBRARY})
 
-install(TARGETS haralick_ann_regularization RUNTIME DESTINATION ".")
+install(TARGETS isgcr RUNTIME DESTINATION ".")

@@ -357,18 +357,12 @@ int main(int argc, char **argv)
 		}
 	}
 
-	//tlp::initTulipLib("/home/cyrille/Dev/Tulip/tulip-3.8-svn/release/install/");
-	//LOG4CXX_INFO(logger, "TULIP_DIR set to: " << STRINGIFY(TULIP_DIR));
-	//tlp::initTulipLib(STRINGIFY(TULIP_DIR));
-	//tlp::initTulipLib(0);
-	//tlp::PluginLibraryLoader::loadPlugins(0);
 	if(cli_parser.get_debug()) {
 		PluginLoaderTxt txtLoader;
 		tlp::initTulipSoftware(&txtLoader);
 	} else {
 		tlp::initTulipSoftware(NULL);
 	}
-
 
 	/*
 	 * Creation of the graph structure
@@ -466,7 +460,7 @@ int main(int argc, char **argv)
 		while(itNodes->hasNext())
 		{
 			u = itNodes->next();
-			if(roi->getNodeValue(u)) // Fut un temps ou cela posait problème avec f0_size, mais cela est réparé
+			if(roi->getNodeValue(u))
 			{
 				std::vector<float> probabilities = pixelClassifier->classify(features_property->getNodeValue(u));
 
@@ -514,7 +508,7 @@ int main(int argc, char **argv)
 		//bool reg_applied = subgraph->applyAlgorithm("ChanVese Regularization", error4, &data4, &pp);
 		bool reg_applied = subgraphs[i]->applyAlgorithm("Rudin-Osher-Fatemi Regularization", error4, &data4, &pp);
 		if(!reg_applied) {
-			LOG4CXX_FATAL(logger, "Unable to apply the ChanVese Regularization algorithm: " << error4);
+			LOG4CXX_FATAL(logger, "Unable to apply the ROF Regularization algorithm: " << error4);
 			return -1;
 		}
 
@@ -580,7 +574,7 @@ int main(int argc, char **argv)
 				max_pos = (regularized_segmentations[0]->getNodeValue(u) > 0.5 ? 1 : 2); // No rejected class
 			}
 		} else {
-			max_pos = 0; // XXX Est ce que l'on met à 0 lorsque l'on est sensé ignorer le pixel ?
+			max_pos = 0; // XXX Do we set it to 0 when we are supposed to ignore the pixel?
 		}
 
 		classification_image->SetPixel(index, max_pos);
