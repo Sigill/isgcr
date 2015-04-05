@@ -35,26 +35,34 @@ if(OPENMP_FOUND)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
+option(QUICK_BUILD "Will compile templates only once. This option is tricky and may break the build." OFF) 
+
 find_package(TULIP REQUIRED)
 include_directories(${TULIP_INCLUDE_DIR})
-add_definitions(-DITK_MANUAL_INSTANTIATION)
-add_definitions(-DMANUAL_INSTANTIATION)
 
-add_executable(isgcr
+# In order to optimize parallelization, heavy files first.
+set(SOURCES
 	main.cpp
-	time_utils.cpp
 	cli_parser.cpp
-	common.cpp
 	image_loader.cpp
 	NeuralNetworkPixelClassifiers.cpp
 	LoggerPluginProgress.cpp
-	ParseUtils.cpp
 	FannClassificationDataset.cpp
-	templates.cpp
 	boost_program_options_types.cpp
 	LibSVMClassificationDataset.cpp
 	SVMPixelClassifier.cpp
-	)
+	ParseUtils.cpp
+	time_utils.cpp
+	common.cpp
+)
+
+if(QUICK_BUILD)
+	list(INSERT SOURCES 0 templates.cpp)
+	add_definitions(-DITK_MANUAL_INSTANTIATION)
+	add_definitions(-DMANUAL_INSTANTIATION)
+endif()
+
+add_executable(isgcr ${SOURCES})
 set_target_properties(isgcr PROPERTIES COMPILE_DEFINITIONS FANN_NO_DLL)
 target_link_libraries(isgcr ${ITK_LIBRARIES} ${FANN_STATIC_DOUBLE_LIBRARY} ${Boost_LIBRARIES} ${TULIP_LIBRARIES} ${LOG4CXX_LIBRARIES} ${QT_LIBRARIES} ${SVM_LIBRARY})
 

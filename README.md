@@ -16,13 +16,12 @@ This tool is written in C++, relies on [CMake](http://www.cmake.org/) for the bu
 * [FANN](http://leenissen.dk/fann/wp/), for neural networks (you will have to use the `static_libs_and_improved_cmake_support` branch of my [fork](https://github.com/Sigill/fann)).
 * [LIBSVM](http://www.csie.ntu.edu.tw/~cjlin/libsvm/), for SVM.
 * [Tulip](http://tulip.labri.fr/TulipDrupal/), for graphs.
-* [This](https://github.com/Sigill/tulip-plugin-grid3d-import) Tulip plugin, for creating 3D grids.
 * [This](https://github.com/Sigill/tulip-plugin-grid3d-import) and [this](https://github.com/Sigill/tulip-plugin-image3d) Tulip plugins, for transforming images to graphs.
 * [This](https://github.com/Sigill/tulip-plugin-rof-regularization) Rudin-Osher-Fatemi graph regularization plugin for Tulip.
 
-Except for LIBSVM (which is often available in your package manager), you will have to produce you own builds of all those tools an libraries.
+Except for LIBSVM (which is often available in your package manager), you will probably have to produce you own builds of all those tools and libraries.
 
-It has last been tested with ITK 4.5, Tulip 4.5, LIBSVM 3.1, but it may work with newer versions.
+It has last been tested with ITK 4.7.1, Tulip 4.6.1, LIBSVM 3.12, but it should work with newer versions.
 
 Then, use CMake and specify the path for all dependencies.
 

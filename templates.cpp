@@ -17,10 +17,15 @@
 
 #include "Classifier.h"
 
-template class itk::Image< unsigned char, __ImageDimension >;
-template class itk::VectorImage< float, __ImageDimension >;
+#include <itkSimpleDataObjectDecorator.h>
+#include <string>
+
+template class itk::SimpleDataObjectDecorator<std::string>;
 
 template class itk::VariableLengthVector<float>;
+
+template class itk::Image< unsigned char, __ImageDimension >;
+template class itk::VectorImage< float, __ImageDimension >;
 
 template class itk::ImageSource< ImageType >;
 template class itk::ImageSource< FeaturesImage >;
